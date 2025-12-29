@@ -1,0 +1,17 @@
+{
+  "cxxNamespace": ["sharedtransition"],
+  "ios": {
+    "iosModuleName": "SharedTransition"
+  },
+  "android": {
+    "androidNamespace": ["sharedtransition"],
+    "androidCxxLibName": "sharedtransition"
+  },
+  "autolinking": {
+    "SharedTransition": {
+      "swift": "HybridSharedTransition",
+      "kotlin": "HybridSharedTransition"
+    }
+  },
+  "ignorePaths": ["node_modules"]
+}
