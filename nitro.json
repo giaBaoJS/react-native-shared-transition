@@ -8,9 +8,13 @@
     "androidCxxLibName": "sharedtransition"
   },
   "autolinking": {
-    "SharedTransition": {
-      "swift": "HybridSharedTransition",
-      "kotlin": "HybridSharedTransition"
+    "SharedTransitionModule": {
+      "swift": "HybridSharedTransitionModule",
+      "kotlin": "HybridSharedTransitionModule"
+    },
+    "SnapshotView": {
+      "swift": "HybridSnapshotView",
+      "kotlin": "HybridSnapshotView"
     }
   },
   "ignorePaths": ["node_modules"]

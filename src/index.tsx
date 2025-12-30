@@ -1,11 +1,27 @@
-import { getHostComponent } from 'react-native-nitro-modules';
-const SharedTransitionConfig = require('../nitrogen/generated/shared/json/SharedTransitionConfig.json');
-import type {
-  SharedTransitionMethods,
-  SharedTransitionProps,
-} from './SharedTransition.nitro';
+// Public API exports
+export { SharedElement } from './SharedElement';
+export { useSharedTransition } from './useSharedTransition';
 
-export const SharedTransitionView = getHostComponent<
-  SharedTransitionProps,
-  SharedTransitionMethods
->('SharedTransition', () => SharedTransitionConfig);
+// Type exports
+export type {
+  SharedElementId,
+  SharedElementProps,
+  ElementLayout,
+  SharedTransitionConfig,
+  SharedTransitionResult,
+  TransitionState,
+} from './types';
+
+// Native types (for advanced usage)
+export type {
+  NativeLayout,
+  SnapshotData,
+  TransitionConfig,
+} from './specs/SharedTransitionModule.nitro';
+
+// Native module utilities (for advanced usage)
+export {
+  isNativeModuleAvailable,
+  captureSnapshot,
+  measureLayout,
+} from './native/NativeModule';

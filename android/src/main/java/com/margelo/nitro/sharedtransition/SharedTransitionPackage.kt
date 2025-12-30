@@ -6,10 +6,15 @@ import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.module.model.ReactModuleInfoProvider
 import com.facebook.react.uimanager.ViewManager
 
-import com.margelo.nitro.sharedtransition.views.HybridSharedTransitionManager
-
+/**
+ * React Native Package for SharedTransition library
+ *
+ * Registers native modules and view managers with React Native.
+ * Uses Nitro Modules for native module implementation.
+ */
 class SharedTransitionPackage : BaseReactPackage() {
     override fun getModule(name: String, reactContext: ReactApplicationContext): NativeModule? {
+        // Native modules are handled by Nitro Modules, not standard RN modules
         return null
     }
 
@@ -18,11 +23,13 @@ class SharedTransitionPackage : BaseReactPackage() {
     }
 
     override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> {
-        return listOf(HybridSharedTransitionManager())
+        // View managers are handled by Nitro Modules autolinking
+        return emptyList()
     }
 
     companion object {
         init {
+            // Load native library
             System.loadLibrary("sharedtransition")
         }
     }
