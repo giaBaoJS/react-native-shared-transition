@@ -11,7 +11,8 @@ This document records the step-by-step development process of `react-native-shar
 3. [Step 2: Public API Design](#step-2-public-api-design)
 4. [Step 3: Nitro Module Specification](#step-3-nitro-module-specification)
 5. [Step 4: Generate Nitrogen Specs](#step-4-generate-nitrogen-specs)
-6. [Future Steps](#future-steps)
+6. [Step 5: Setup Example App](#step-5-setup-example-app-)
+7. [Future Steps](#future-steps)
 
 ---
 
@@ -579,30 +580,226 @@ pod install
 
 ---
 
+## Step 4 (Restart): Complete Rewrite with Modern APIs
+
+### Status: ✅ Completed
+
+**Goal**: Restart development with cleaner architecture, supporting both Nitro Modules (preferred) and TurboModules (fallback).
+
+### Key Changes
+
+#### 4A: Redesigned Nitro Specs
+
+Created new simplified specs compatible with `react-native-shared-element` API:
+
+**`SharedTransitionModule.nitro.ts`**:
+- `measureNode(nativeId)` - Measure view layout in screen coordinates
+- `captureSnapshot(nativeId)` - Capture PNG snapshot of view
+- `prepareTransition(startId, endId, config)` - Prepare full transition data
+- `createCloneView(nativeId)` - Create overlay clone for transition
+- `destroyCloneView(viewTag)` - Remove clone view
+- `setNodeHidden(nativeId, hidden)` - Hide/show original elements
+- `cleanup()` - Clean cached resources
+
+**`TransitionOverlay.nitro.ts`** (HybridView):
+- Props: `snapshotUri`, `snapshotWidth`, `snapshotHeight`, `resizeMode`, `opacity`
+- Methods: `fadeOut(duration)`, `updateSnapshot(uri)`
+
+#### 4B: TurboModule Fallback
+
+Created `NativeSharedTransition.ts` TurboModule spec for projects without Nitro:
+- Same API surface as Nitro module
+- Uses standard `TurboModuleRegistry.get()` pattern
+- Automatic detection in `NativeModule.ts`
+
+#### 4C & 4D: Native Implementations
+
+**iOS (Swift)**:
+- Uses `UIGraphicsImageRenderer` for snapshot capture (modern API)
+- Uses `UIWindowScene` for window access (iOS 13+)
+- Recursive view finding via `accessibilityIdentifier`
+- No deprecated `UIManager` or `findNodeHandle` APIs
+
+**Android (Kotlin)**:
+- Uses `View.draw()` with `Canvas` for snapshot capture
+- Uses `getLocationOnScreen()` for measurements
+- Recursive view finding via `tag` and reflection fallback
+- Coroutine-based async operations with `Promise.async`
+
+#### 4E: JS/TS Layer
+
+**`NativeModule.ts`** - Unified bridge:
+```typescript
+// Automatic detection
+export function getModuleType(): 'nitro' | 'turbo' | 'none'
+export function isNativeModuleAvailable(): boolean
+export function isUsingNitro(): boolean
+
+// Unified API (works with both)
+export async function measureNode(nativeId: string)
+export async function captureSnapshot(nativeId: string)
+export async function prepareTransition(...)
+```
+
+**Components**:
+- `SharedElement` - Wrapper component with `nativeID` and registry
+- `SharedElementTransition` - Transition renderer with Animated support
+- `SharedElementRegistry` - Global element tracking
+
+**Hooks**:
+- `useSharedTransition(elementId, config)` - Transition control hook
+- `useSharedTransitionValue(elementId, config)` - Returns Animated.Value
+
+#### 4F: Nitrogen Generation
+
+Successfully generated 150 files with 4 HybridObjects:
+- `SharedTransitionModule` (HybridObject)
+- `TransitionOverlay` (HybridView)
+- Supporting types: `SharedElementLayout`, `SharedElementNodeData`, `TransitionConfig`, `PreparedTransitionData`, enums
+
+### Files Structure After Step 4
+
+```
+src/
+├── index.tsx                          # Public exports
+├── types.ts                           # Type definitions
+├── SharedElement.tsx                  # Main component
+├── SharedElementTransition.tsx        # Transition renderer
+├── SharedElementRegistry.ts           # Element tracking
+├── useSharedTransition.ts             # React hooks
+├── specs/
+│   ├── SharedTransitionModule.nitro.ts  # Nitro module spec
+│   ├── TransitionOverlay.nitro.ts       # Nitro view spec
+│   └── NativeSharedTransition.ts        # TurboModule fallback
+└── native/
+    └── NativeModule.ts                  # Unified bridge
+
+ios/
+├── HybridSharedTransitionModule.swift   # Module implementation
+└── HybridTransitionOverlay.swift        # View implementation
+
+android/src/main/java/.../sharedtransition/
+├── HybridSharedTransitionModule.kt      # Module implementation
+├── HybridTransitionOverlay.kt           # View implementation
+└── SharedTransitionPackage.kt           # React package
+
+nitrogen/generated/                      # Auto-generated (150 files)
+├── android/
+├── ios/
+└── shared/
+```
+
+---
+
+## Step 5: Setup Example App ✅
+
+### Overview
+
+Created a complete example app demonstrating the shared element transition library. Based on the structure from `react-native-shared-element` but with a modern React Native setup.
+
+### Files Created
+
+#### Types (`example/src/types/`)
+- `index.ts` - Hero and SharedElementConfig types
+
+#### Assets (`example/src/assets/`)
+- `index.ts` - Heroes data with remote images from picsum.photos
+
+#### Components (`example/src/components/`)
+- `Colors.ts` - Color palette and shadow definitions
+- `Text.tsx` - Custom Text component with size/color variants
+- `NavBar.tsx` - Navigation bar with back button
+- `ListItem.tsx` - Menu item component
+- `Router.tsx` - Simple router with animated screen transitions
+- `index.ts` - Barrel export
+
+#### Screens (`example/src/screens/`)
+- `MainScreen.tsx` - Demo menu with navigation options
+- `TilesScreen.tsx` - Grid/list of heroes with SharedElement
+- `DetailScreen.tsx` - Full-screen hero detail view
+- `index.ts` - Barrel export
+
+#### App Entry (`example/src/`)
+- `App.tsx` - Root component with providers
+
+### Key Implementation Details
+
+#### 1. Simple Router System
+```tsx
+// Global navigation without React Navigation
+Router.push(<DetailScreen hero={hero} />, { duration: 400 });
+Router.pop();
+
+// Or via hook
+const { push, pop } = useRouter();
+```
+
+#### 2. Animated Screen Transitions
+- Uses `Animated.Value` for position tracking
+- Screens slide in from right, scale down when covered
+- Back button and hardware back support
+
+#### 3. SharedElement Usage
+```tsx
+// In TilesScreen
+<SharedElement id={`heroPhoto.${hero.id}`}>
+  <Image source={hero.photo} />
+</SharedElement>
+
+// In DetailScreen (same id = automatic transition)
+<SharedElement id={`heroPhoto.${hero.id}`}>
+  <Image source={hero.photo} />
+</SharedElement>
+```
+
+#### 4. Dependencies Added
+- `react-native-gesture-handler`
+- `react-native-safe-area-context`
+- `react-native-screens`
+
+### Example App Structure
+```
+example/src/
+├── App.tsx
+├── types/
+│   └── index.ts
+├── assets/
+│   └── index.ts
+├── components/
+│   ├── Colors.ts
+│   ├── Text.tsx
+│   ├── NavBar.tsx
+│   ├── ListItem.tsx
+│   ├── Router.tsx
+│   └── index.ts
+└── screens/
+    ├── MainScreen.tsx
+    ├── TilesScreen.tsx
+    ├── DetailScreen.tsx
+    └── index.ts
+```
+
+---
+
 ## Future Steps
 
 ### Step 6: Test Native Functionality
-- Test snapshot capture
+- Test snapshot capture on both platforms
 - Test layout measurements
 - Debug any native issues
 - Verify data flows correctly to JS
 
-### Step 7: Implement Transition Rendering
-- Create overlay view for showing snapshot during transition
-- Wire up Reanimated animations to snapshot position/scale
-- Handle transition start/end lifecycle
-
-### Step 8: Navigation Integration Examples
-- React Navigation example
-- Expo Router example
+### Step 7: Navigation Integration
+- React Navigation integration example
+- Expo Router integration example
 - Custom navigation example
 
-### Step 9: Performance Optimization
+### Step 8: Performance Optimization
 - Lazy snapshot capture
 - Memory management
 - Gesture handling during transitions
 
-### Step 10: Testing & Documentation
+### Step 9: Testing & Documentation
 - Unit tests
 - Integration tests
 - API documentation finalization
@@ -618,9 +815,11 @@ pod install
 | Initial | 2 | Created public API (SharedElement, useSharedTransition) |
 | Initial | 3 | Created Nitro specs and native implementations |
 | Initial | 4 | Generated Nitrogen bridge code (57 files), fixed type issues |
-| Current | 5 | Android build success, iOS blocked by Xcode version |
+| Previous | 5 | Android build success, iOS blocked by Xcode version |
+| Previous | 4 (Restart) | Complete rewrite with Nitro + TurboModule fallback |
+| Current | 5 | Example app setup: Router, screens, components, assets |
 
 ---
 
-*Last updated: Step 5 in progress (Android ✅, iOS ⚠️)*
+*Last updated: Step 5 completed, ready for Step 6 (Test Native Functionality)*
 

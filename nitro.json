@@ -12,9 +12,9 @@
       "swift": "HybridSharedTransitionModule",
       "kotlin": "HybridSharedTransitionModule"
     },
-    "SnapshotView": {
-      "swift": "HybridSnapshotView",
-      "kotlin": "HybridSnapshotView"
+    "TransitionOverlay": {
+      "swift": "HybridTransitionOverlay",
+      "kotlin": "HybridTransitionOverlay"
     }
   },
   "ignorePaths": ["node_modules"]

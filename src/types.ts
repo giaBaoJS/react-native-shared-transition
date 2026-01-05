@@ -1,6 +1,19 @@
-import type { ReactNode } from 'react';
-import type { ViewStyle } from 'react-native';
-import type { SharedValue } from 'react-native-reanimated';
+/**
+ * Type definitions for react-native-shared-transition
+ *
+ * API design compatible with react-native-shared-element
+ */
+
+import type { ViewStyle, StyleProp } from 'react-native';
+
+// Re-export native types
+export type {
+  SharedElementLayout,
+  SharedElementAnimation,
+  SharedElementResize,
+  SharedElementAlign,
+  SharedElementContentType,
+} from './specs/SharedTransitionModule.nitro';
 
 /**
  * Unique identifier for shared elements
@@ -8,13 +21,16 @@ import type { SharedValue } from 'react-native-reanimated';
 export type SharedElementId = string;
 
 /**
- * Layout information for an element
+ * Node reference returned by SharedElement
+ * Used internally for tracking
  */
-export interface ElementLayout {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
+export interface SharedElementNode {
+  /** Unique nativeID for this instance */
+  nativeId: string;
+  /** User-provided transition ID */
+  transitionId: SharedElementId;
+  /** Ancestor nativeID (for relative positioning) */
+  ancestorId?: string;
 }
 
 /**
@@ -22,88 +38,156 @@ export interface ElementLayout {
  */
 export interface SharedElementProps {
   /**
-   * Unique identifier for this shared element.
-   * Elements with the same ID across screens will transition between each other.
+   * Unique ID to match elements across screens
+   * Elements with the same ID will transition together
    */
   id: SharedElementId;
-
-  /**
-   * Content to render
-   */
-  children: ReactNode;
 
   /**
    * Style applied to the wrapper view
    */
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 
   /**
-   * Disable transitions for this element
-   * @default false
+   * Children to wrap (should be a single element)
    */
-  disabled?: boolean;
+  children: React.ReactNode;
+
+  /**
+   * Callback when the node is ready
+   * @param node - The node reference or null when unmounting
+   */
+  onNode?: (node: SharedElementNode | null) => void;
 }
 
 /**
- * Transition state during animation
+ * Configuration for a single shared element in a transition
  */
-export type TransitionState = 'idle' | 'transitioning' | 'completed';
+export interface SharedElementConfig {
+  /** The ID of the shared element */
+  id: SharedElementId;
+
+  /** Optional different ID on the other screen (rare) */
+  otherId?: SharedElementId;
+
+  /** Animation type */
+  animation?: import('./specs/SharedTransitionModule.nitro').SharedElementAnimation;
+
+  /** Resize behavior */
+  resize?: import('./specs/SharedTransitionModule.nitro').SharedElementResize;
+
+  /** Alignment behavior */
+  align?: import('./specs/SharedTransitionModule.nitro').SharedElementAlign;
+
+  /** Enable debug mode for this element */
+  debug?: boolean;
+}
 
 /**
- * Configuration for shared transition behavior
+ * Simplified config - just the ID string
  */
-export interface SharedTransitionConfig {
-  /**
-   * Animation duration in milliseconds
-   * @default 300
-   */
+export type SharedElementsConfigInput =
+  | SharedElementConfig
+  | SharedElementId;
+
+/**
+ * Full config array for transitions
+ */
+export type SharedElementsConfig = SharedElementsConfigInput[];
+
+/**
+ * Normalized config (always has all fields)
+ */
+export interface SharedElementStrictConfig {
+  id: SharedElementId;
+  otherId: SharedElementId;
+  animation: import('./specs/SharedTransitionModule.nitro').SharedElementAnimation;
+  resize: import('./specs/SharedTransitionModule.nitro').SharedElementResize;
+  align: import('./specs/SharedTransitionModule.nitro').SharedElementAlign;
+  debug: boolean;
+}
+
+/**
+ * Transition state
+ */
+export type TransitionState =
+  | 'idle'
+  | 'preparing'
+  | 'running'
+  | 'completed'
+  | 'error';
+
+/**
+ * Configuration for useSharedTransition hook
+ */
+export interface UseSharedTransitionConfig {
+  /** Animation duration in milliseconds */
   duration?: number;
 
-  /**
-   * Disable automatic transition detection
-   * @default false
-   */
-  disabled?: boolean;
+  /** Enable debug mode */
+  debug?: boolean;
+
+  /** Custom easing function name (for Reanimated) */
+  easing?: string;
 }
 
 /**
- * Return value from useSharedTransition hook
+ * Result from useSharedTransition hook
  */
-export interface SharedTransitionResult {
-  /**
-   * Current layout of the element (sync, immediately available)
-   */
-  layout: ElementLayout | null;
-
-  /**
-   * Current transition state
-   */
+export interface UseSharedTransitionResult {
+  /** Current transition state */
   state: TransitionState;
 
-  /**
-   * Reanimated shared values for custom animations
-   */
-  animated: {
-    progress: SharedValue<number>; // 0 to 1
-    x: SharedValue<number>;
-    y: SharedValue<number>;
-    width: SharedValue<number>;
-    height: SharedValue<number>;
-  };
+  /** Progress value (0-1) */
+  progress: number;
 
-  /**
-   * Manual control (for advanced use cases)
-   */
-  start: () => void;
+  /** Start the transition */
+  start: () => Promise<void>;
+
+  /** Reset/cancel the transition */
   reset: () => void;
+
+  /** Error if any */
+  error: Error | null;
+}
+
+// =============================================================================
+// Helper functions
+// =============================================================================
+
+/**
+ * Normalize a shared element config to strict format
+ */
+export function normalizeSharedElementConfig(
+  config: SharedElementsConfigInput
+): SharedElementStrictConfig {
+  if (typeof config === 'string') {
+    return {
+      id: config,
+      otherId: config,
+      animation: 'move',
+      resize: 'auto',
+      align: 'auto',
+      debug: false,
+    };
+  }
+
+  return {
+    id: config.id,
+    otherId: config.otherId ?? config.id,
+    animation: config.animation ?? 'move',
+    resize: config.resize ?? 'auto',
+    align: config.align ?? 'auto',
+    debug: config.debug ?? false,
+  };
 }
 
 /**
- * Internal registry entry for tracking shared elements
- * @internal
+ * Normalize array of configs
  */
-export interface SharedElementEntry {
-  id: SharedElementId;
-  layout: ElementLayout | null;
-  timestamp: number;
+export function normalizeSharedElementsConfig(
+  configs: SharedElementsConfig | undefined
+): SharedElementStrictConfig[] | undefined {
+  if (!configs || configs.length === 0) return undefined;
+  return configs.map(normalizeSharedElementConfig);
 }

@@ -6,195 +6,350 @@ import NitroModules
  * Native module for shared element transitions on iOS
  *
  * Provides Fabric-safe APIs for:
- * - View snapshot capture using CALayer
- * - Precise layout measurement
- * - Element registration and tracking
+ * - View snapshot capture using CALayer rendering
+ * - Precise layout measurement in screen coordinates
+ * - Element visibility control
  *
- * Does NOT use deprecated APIs (UIManager, findNodeHandle).
+ * Uses modern iOS APIs (iOS 13+):
+ * - UIGraphicsImageRenderer for efficient rendering
+ * - UIWindowScene for window access
+ * - No deprecated UIManager/findNodeHandle APIs
  */
 class HybridSharedTransitionModule: HybridSharedTransitionModuleSpec {
 
-  // MARK: - Properties
+    // MARK: - Properties
 
-  /// Registered elements by nativeID
-  private var registeredElements: [String: String] = [:]
+    /// Cached snapshots by nativeID (URI -> file path)
+    private var cachedSnapshots: [String: URL] = [:]
 
-  /// Cached snapshots by nativeID
-  private var cachedSnapshots: [String: String] = [:]
+    /// Hidden elements by nativeID
+    private var hiddenElements: Set<String> = []
 
-  // MARK: - HybridSharedTransitionModuleSpec Implementation
+    /// Clone views by view tag
+    private var cloneViews: [Int: UIView] = [:]
 
-  func captureSnapshot(nativeId: String) throws -> Promise<SnapshotData> {
-    return Promise { resolver in
-      DispatchQueue.main.async {
-        guard let view = self.findViewByNativeID(nativeId) else {
-          resolver.reject(
-            NSError(
-              domain: "SharedTransition",
-              code: 404,
-              userInfo: [NSLocalizedDescriptionKey: "View not found: \(nativeId)"]
+    /// Counter for clone view tags
+    private var cloneViewTagCounter: Int = 1000
+
+    // MARK: - HybridSharedTransitionModuleSpec Implementation
+
+    func measureNode(nativeId: String) throws -> Promise<SharedElementNodeData> {
+        return Promise.async {
+            guard let view = self.findViewByNativeID(nativeId) else {
+                throw NSError(
+                    domain: "SharedTransition",
+                    code: 404,
+                    userInfo: [NSLocalizedDescriptionKey: "View not found: \(nativeId)"]
+                )
+            }
+
+            // Get frame in window coordinates (screen-relative)
+            guard let window = view.window else {
+                throw NSError(
+                    domain: "SharedTransition",
+                    code: 500,
+                    userInfo: [NSLocalizedDescriptionKey: "View not in window hierarchy: \(nativeId)"]
+                )
+            }
+
+            let frameInWindow = view.convert(view.bounds, to: window)
+
+            // Detect content type
+            let contentType = self.detectContentType(view)
+
+            // Capture snapshot
+            let snapshotUri = try self.captureSnapshotSync(view: view, nativeId: nativeId)
+
+            let layout = SharedElementLayout(
+                x: Double(frameInWindow.origin.x),
+                y: Double(frameInWindow.origin.y),
+                width: Double(frameInWindow.width),
+                height: Double(frameInWindow.height)
             )
-          )
-          return
+
+            return SharedElementNodeData(
+                layout: layout,
+                contentType: contentType,
+                snapshotUri: snapshotUri
+            )
+        }
+    }
+
+    func captureSnapshot(nativeId: String) throws -> Promise<String> {
+        return Promise.async {
+            guard let view = self.findViewByNativeID(nativeId) else {
+                throw NSError(
+                    domain: "SharedTransition",
+                    code: 404,
+                    userInfo: [NSLocalizedDescriptionKey: "View not found: \(nativeId)"]
+                )
+            }
+
+            return try self.captureSnapshotSync(view: view, nativeId: nativeId)
+        }
+    }
+
+    func prepareTransition(
+        startNodeId: String,
+        endNodeId: String,
+        config: TransitionConfig
+    ) throws -> Promise<PreparedTransitionData> {
+        return Promise.async {
+            // Find both views
+            guard let startView = self.findViewByNativeID(startNodeId) else {
+                throw NSError(
+                    domain: "SharedTransition",
+                    code: 404,
+                    userInfo: [NSLocalizedDescriptionKey: "Start view not found: \(startNodeId)"]
+                )
+            }
+
+            guard let endView = self.findViewByNativeID(endNodeId) else {
+                throw NSError(
+                    domain: "SharedTransition",
+                    code: 404,
+                    userInfo: [NSLocalizedDescriptionKey: "End view not found: \(endNodeId)"]
+                )
+            }
+
+            // Get window for coordinate conversion
+            guard let window = startView.window else {
+                throw NSError(
+                    domain: "SharedTransition",
+                    code: 500,
+                    userInfo: [NSLocalizedDescriptionKey: "Views not in window hierarchy"]
+                )
+            }
+
+            // Measure layouts
+            let startFrame = startView.convert(startView.bounds, to: window)
+            let endFrame = endView.convert(endView.bounds, to: window)
+
+            // Capture snapshots
+            let startSnapshotUri = try self.captureSnapshotSync(view: startView, nativeId: startNodeId)
+            let endSnapshotUri = try self.captureSnapshotSync(view: endView, nativeId: endNodeId)
+
+            // Detect content types
+            let startContentType = self.detectContentType(startView)
+            let endContentType = self.detectContentType(endView)
+
+            let startLayout = SharedElementLayout(
+                x: Double(startFrame.origin.x),
+                y: Double(startFrame.origin.y),
+                width: Double(startFrame.width),
+                height: Double(startFrame.height)
+            )
+
+            let endLayout = SharedElementLayout(
+                x: Double(endFrame.origin.x),
+                y: Double(endFrame.origin.y),
+                width: Double(endFrame.width),
+                height: Double(endFrame.height)
+            )
+
+            return PreparedTransitionData(
+                startLayout: startLayout,
+                endLayout: endLayout,
+                startSnapshotUri: startSnapshotUri,
+                endSnapshotUri: endSnapshotUri,
+                startContentType: startContentType,
+                endContentType: endContentType
+            )
+        }
+    }
+
+    func createCloneView(nativeId: String) throws -> Promise<Double> {
+        return Promise.async {
+            guard let originalView = self.findViewByNativeID(nativeId) else {
+                throw NSError(
+                    domain: "SharedTransition",
+                    code: 404,
+                    userInfo: [NSLocalizedDescriptionKey: "View not found: \(nativeId)"]
+                )
+            }
+
+            guard let window = originalView.window else {
+                throw NSError(
+                    domain: "SharedTransition",
+                    code: 500,
+                    userInfo: [NSLocalizedDescriptionKey: "View not in window"]
+                )
+            }
+
+            // Create snapshot view
+            let snapshotView = originalView.snapshotView(afterScreenUpdates: false)
+                ?? UIView(frame: originalView.bounds)
+
+            // Position in window coordinates
+            let frameInWindow = originalView.convert(originalView.bounds, to: window)
+            snapshotView.frame = frameInWindow
+
+            // Generate tag
+            let viewTag = self.cloneViewTagCounter
+            self.cloneViewTagCounter += 1
+
+            // Store and add to window
+            self.cloneViews[viewTag] = snapshotView
+            window.addSubview(snapshotView)
+
+            return Double(viewTag)
+        }
+    }
+
+    func destroyCloneView(viewTag: Double) throws {
+        let tag = Int(viewTag)
+
+        if let cloneView = cloneViews[tag] {
+            cloneView.removeFromSuperview()
+            cloneViews.removeValue(forKey: tag)
+        }
+    }
+
+    func setNodeHidden(nativeId: String, hidden: Bool) throws {
+        guard let view = findViewByNativeID(nativeId) else {
+            return // Silently ignore if view not found
         }
 
-        // Capture snapshot using CALayer
+        DispatchQueue.main.async {
+            view.isHidden = hidden
+
+            if hidden {
+                self.hiddenElements.insert(nativeId)
+            } else {
+                self.hiddenElements.remove(nativeId)
+            }
+        }
+    }
+
+    func cleanup() throws {
+        // Remove all cached snapshots
+        for (_, url) in cachedSnapshots {
+            try? FileManager.default.removeItem(at: url)
+        }
+        cachedSnapshots.removeAll()
+
+        // Show all hidden elements
+        for nativeId in hiddenElements {
+            if let view = findViewByNativeID(nativeId) {
+                view.isHidden = false
+            }
+        }
+        hiddenElements.removeAll()
+
+        // Remove all clone views
+        for (_, view) in cloneViews {
+            view.removeFromSuperview()
+        }
+        cloneViews.removeAll()
+    }
+
+    // MARK: - Private Helpers
+
+    /// Capture snapshot synchronously (must be called on main thread)
+    private func captureSnapshotSync(view: UIView, nativeId: String) throws -> String {
+        // Check if already cached
+        if let cachedUrl = cachedSnapshots[nativeId] {
+            return cachedUrl.absoluteString
+        }
+
+        // Ensure view has valid size
+        guard view.bounds.width > 0 && view.bounds.height > 0 else {
+            throw NSError(
+                domain: "SharedTransition",
+                code: 400,
+                userInfo: [NSLocalizedDescriptionKey: "View has zero size"]
+            )
+        }
+
+        // Use UIGraphicsImageRenderer for modern, efficient rendering
         let renderer = UIGraphicsImageRenderer(bounds: view.bounds)
         let image = renderer.image { context in
-          view.layer.render(in: context.cgContext)
+            // Use layer rendering for accurate capture including subviews
+            view.layer.render(in: context.cgContext)
         }
 
-        // Save to temporary file
-        let fileName = "snapshot_\(nativeId.replacingOccurrences(of: "/", with: "_"))_\(Date().timeIntervalSince1970).png"
+        // Generate unique filename
+        let safeNativeId = nativeId.replacingOccurrences(of: "/", with: "_")
+        let fileName = "shared_transition_\(safeNativeId)_\(Date().timeIntervalSince1970).png"
         let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
 
-        do {
-          try image.pngData()?.write(to: fileURL)
-
-          let snapshot = SnapshotData(
-            uri: fileURL.absoluteString,
-            width: Double(view.bounds.width),
-            height: Double(view.bounds.height)
-          )
-
-          // Cache the snapshot URI
-          self.cachedSnapshots[nativeId] = fileURL.absoluteString
-
-          resolver.resolve(snapshot)
-        } catch {
-          resolver.reject(error)
-        }
-      }
-    }
-  }
-
-  func measureLayout(nativeId: String) throws -> Promise<NativeLayout> {
-    return Promise { resolver in
-      DispatchQueue.main.async {
-        guard let view = self.findViewByNativeID(nativeId) else {
-          resolver.reject(
-            NSError(
-              domain: "SharedTransition",
-              code: 404,
-              userInfo: [NSLocalizedDescriptionKey: "View not found: \(nativeId)"]
+        // Save as PNG (lossless, supports transparency)
+        guard let pngData = image.pngData() else {
+            throw NSError(
+                domain: "SharedTransition",
+                code: 500,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to create PNG data"]
             )
-          )
-          return
         }
 
-        // Get frame in window coordinates (screen-relative)
-        guard let window = view.window else {
-          resolver.reject(
-            NSError(
-              domain: "SharedTransition",
-              code: 500,
-              userInfo: [NSLocalizedDescriptionKey: "View not in window hierarchy"]
-            )
-          )
-          return
-        }
+        try pngData.write(to: fileURL)
 
-        let frameInWindow = view.convert(view.bounds, to: window)
+        // Cache the URL
+        cachedSnapshots[nativeId] = fileURL
 
-        let layout = NativeLayout(
-          x: Double(view.frame.origin.x),
-          y: Double(view.frame.origin.y),
-          width: Double(view.frame.width),
-          height: Double(view.frame.height),
-          pageX: Double(frameInWindow.origin.x),
-          pageY: Double(frameInWindow.origin.y)
-        )
-
-        resolver.resolve(layout)
-      }
+        return fileURL.absoluteString
     }
-  }
 
-  func registerElement(nativeId: String, transitionId: String) throws {
-    registeredElements[nativeId] = transitionId
-  }
+    /// Detect the content type of a view
+    private func detectContentType(_ view: UIView) -> SharedElementContentType {
+        // Check if it's an image view
+        if view is UIImageView {
+            return .image
+        }
 
-  func unregisterElement(nativeId: String) throws {
-    registeredElements.removeValue(forKey: nativeId)
-    cachedSnapshots.removeValue(forKey: nativeId)
-  }
-
-  func prepareTransition(sourceNativeId: String, targetNativeId: String) throws -> Promise<PreparedTransition> {
-    return Promise { resolver in
-      // Capture source
-      do {
-        let sourceSnapshotPromise = try self.captureSnapshot(nativeId: sourceNativeId)
-        let sourceLayoutPromise = try self.measureLayout(nativeId: sourceNativeId)
-        let targetSnapshotPromise = try self.captureSnapshot(nativeId: targetNativeId)
-        let targetLayoutPromise = try self.measureLayout(nativeId: targetNativeId)
-
-        // Wait for all promises
-        sourceSnapshotPromise.then { sourceSnapshot in
-          sourceLayoutPromise.then { sourceLayout in
-            targetSnapshotPromise.then { targetSnapshot in
-              targetLayoutPromise.then { targetLayout in
-                let result = PreparedTransition(
-                  source: TransitionElement(snapshot: sourceSnapshot, layout: sourceLayout),
-                  target: TransitionElement(snapshot: targetSnapshot, layout: targetLayout)
-                )
-                resolver.resolve(result)
-              }
+        // Check if it contains an image view as direct child
+        for subview in view.subviews {
+            if subview is UIImageView {
+                return .image
             }
-          }
         }
-      } catch {
-        resolver.reject(error)
-      }
-    }
-  }
 
-  func cleanup() throws {
-    // Remove cached snapshot files
-    for (_, uri) in cachedSnapshots {
-      if let url = URL(string: uri) {
-        try? FileManager.default.removeItem(at: url)
-      }
-    }
-    cachedSnapshots.removeAll()
-  }
-
-  // MARK: - Private Helpers
-
-  /// Find a view by its nativeID prop (Fabric-safe)
-  private func findViewByNativeID(_ nativeId: String) -> UIView? {
-    // Search from key window
-    guard let window = UIApplication.shared.connectedScenes
-      .compactMap({ $0 as? UIWindowScene })
-      .flatMap({ $0.windows })
-      .first(where: { $0.isKeyWindow }) else {
-      return nil
+        // Default to snapshot
+        return .snapshot
     }
 
-    return findView(withNativeID: nativeId, in: window)
-  }
+    /// Find a view by its nativeID prop (Fabric-safe)
+    private func findViewByNativeID(_ nativeId: String) -> UIView? {
+        // Get key window from connected scenes (iOS 13+)
+        guard let windowScene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .first(where: { $0.activationState == .foregroundActive }),
+              let window = windowScene.windows.first(where: { $0.isKeyWindow }) else {
+            // Fallback for older iOS or edge cases
+            return findViewByNativeIDFallback(nativeId)
+        }
 
-  /// Recursive view search by accessibilityIdentifier (which maps to nativeID in RN)
-  private func findView(withNativeID nativeId: String, in view: UIView) -> UIView? {
-    // Check if this view has the nativeID
-    if view.accessibilityIdentifier == nativeId {
-      return view
+        return findView(withNativeID: nativeId, in: window)
     }
 
-    // Check React Native's nativeID property directly
-    if view.responds(to: Selector(("nativeID"))) {
-      if let viewNativeID = view.value(forKey: "nativeID") as? String,
-         viewNativeID == nativeId {
-        return view
-      }
+    /// Fallback window access
+    private func findViewByNativeIDFallback(_ nativeId: String) -> UIView? {
+        guard let window = UIApplication.shared.windows.first(where: { $0.isKeyWindow }) else {
+            return nil
+        }
+        return findView(withNativeID: nativeId, in: window)
     }
 
-    // Search subviews
-    for subview in view.subviews {
-      if let found = findView(withNativeID: nativeId, in: subview) {
-        return found
-      }
-    }
+    /// Recursive view search
+    private func findView(withNativeID nativeId: String, in view: UIView) -> UIView? {
+        // Check accessibilityIdentifier (React Native maps nativeID to this)
+        if view.accessibilityIdentifier == nativeId {
+            return view
+        }
 
-    return nil
-  }
+        // Check React Native's nativeID property using KVC (safe)
+        if let viewNativeID = (view as AnyObject).value(forKeyPath: "reactTag") as? String,
+           viewNativeID == nativeId {
+            return view
+        }
+
+        // Search subviews recursively
+        for subview in view.subviews {
+            if let found = findView(withNativeID: nativeId, in: subview) {
+                return found
+            }
+        }
+
+        return nil
+    }
 }

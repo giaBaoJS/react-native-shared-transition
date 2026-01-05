@@ -1,143 +1,315 @@
-import { NitroModules, getHostComponent } from 'react-native-nitro-modules';
-import type { SharedTransitionModule } from '../specs/SharedTransitionModule.nitro';
-import type {
-  SnapshotViewProps,
-  SnapshotViewMethods,
-} from '../specs/SnapshotView.nitro';
+/**
+ * Native Module Bridge
+ *
+ * Handles detection and usage of either:
+ * 1. Nitro Modules (preferred, faster)
+ * 2. TurboModules (fallback)
+ *
+ * This allows the library to work in projects with or without Nitro.
+ */
 
-// Re-export types for external usage
-export type {
-  NativeLayout,
-  SnapshotData,
-  PreparedTransition,
-  TransitionElement,
+import type {
+  SharedTransitionModule,
+  SharedElementLayout,
+  SharedElementNodeData,
+  PreparedTransitionData,
+  TransitionConfig,
+  SharedElementAnimation,
+  SharedElementResize,
+  SharedElementAlign,
+  SharedElementContentType,
 } from '../specs/SharedTransitionModule.nitro';
 
-/**
- * Native module singleton
- *
- * Provides access to native snapshot capture and measurement APIs.
- * Uses Nitro Modules for Fabric-native performance.
- */
-let _module: SharedTransitionModule | null = null;
+import type {
+  NativeLayout,
+  NativeNodeData,
+  NativePreparedTransition,
+  NativeTransitionConfig,
+} from '../specs/NativeSharedTransition';
+
+// Re-export types for public use
+export type {
+  SharedElementLayout,
+  SharedElementNodeData,
+  PreparedTransitionData,
+  TransitionConfig,
+  SharedElementAnimation,
+  SharedElementResize,
+  SharedElementAlign,
+  SharedElementContentType,
+};
 
 /**
- * Get the native SharedTransition module
- *
- * Lazy initialization to avoid loading native code until needed.
+ * Module type enum for detection
  */
-export function getNativeModule(): SharedTransitionModule {
-  if (_module === null) {
-    _module = NitroModules.createHybridObject<SharedTransitionModule>(
+export type NativeModuleType = 'nitro' | 'turbo' | 'none';
+
+/**
+ * Cached module instances
+ */
+let nitroModule: SharedTransitionModule | null = null;
+let turboModule: typeof import('../specs/NativeSharedTransition').default | null =
+  null;
+let moduleType: NativeModuleType | null = null;
+
+/**
+ * Try to load Nitro Module
+ */
+function tryLoadNitroModule(): SharedTransitionModule | null {
+  try {
+    // Dynamic import to avoid crash if not installed
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const NitroModules = require('react-native-nitro-modules').NitroModules;
+    const module = NitroModules.createHybridObject(
       'SharedTransitionModule'
-    );
+    ) as SharedTransitionModule;
+    return module;
+  } catch {
+    return null;
   }
-  return _module;
+}
+
+/**
+ * Try to load TurboModule
+ */
+function tryLoadTurboModule(): typeof turboModule {
+  try {
+    return require('../specs/NativeSharedTransition').default;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Initialize and detect available module
+ */
+function initializeModule(): void {
+  if (moduleType !== null) return;
+
+  // Try Nitro first (preferred)
+  nitroModule = tryLoadNitroModule();
+  if (nitroModule) {
+    moduleType = 'nitro';
+    return;
+  }
+
+  // Fall back to TurboModule
+  turboModule = tryLoadTurboModule();
+  if (turboModule) {
+    moduleType = 'turbo';
+    return;
+  }
+
+  // No native module available
+  moduleType = 'none';
+}
+
+/**
+ * Get the detected module type
+ */
+export function getModuleType(): NativeModuleType {
+  initializeModule();
+  return moduleType!;
 }
 
 /**
  * Check if native module is available
- *
- * Returns false in Jest tests or when native code isn't linked.
  */
 export function isNativeModuleAvailable(): boolean {
-  try {
-    getNativeModule();
-    return true;
-  } catch {
-    return false;
+  return getModuleType() !== 'none';
+}
+
+/**
+ * Check if using Nitro (for feature detection)
+ */
+export function isUsingNitro(): boolean {
+  return getModuleType() === 'nitro';
+}
+
+// =============================================================================
+// Unified API - works with both Nitro and TurboModule
+// =============================================================================
+
+/**
+ * Convert Turbo layout to shared layout
+ */
+function convertLayout(layout: NativeLayout): SharedElementLayout {
+  return {
+    x: layout.x,
+    y: layout.y,
+    width: layout.width,
+    height: layout.height,
+  };
+}
+
+/**
+ * Convert Turbo node data to shared node data
+ */
+function convertNodeData(data: NativeNodeData): SharedElementNodeData {
+  return {
+    layout: convertLayout(data.layout),
+    contentType: data.contentType as SharedElementContentType,
+    snapshotUri: data.snapshotUri,
+  };
+}
+
+/**
+ * Convert shared config to Turbo config
+ */
+function convertConfig(config: TransitionConfig): NativeTransitionConfig {
+  return {
+    animation: config.animation,
+    resize: config.resize,
+    align: config.align,
+    debug: config.debug,
+  };
+}
+
+/**
+ * Convert Turbo prepared transition to shared
+ */
+function convertPreparedTransition(
+  data: NativePreparedTransition
+): PreparedTransitionData {
+  return {
+    startLayout: convertLayout(data.startLayout),
+    endLayout: convertLayout(data.endLayout),
+    startSnapshotUri: data.startSnapshotUri,
+    endSnapshotUri: data.endSnapshotUri,
+    startContentType: data.startContentType as SharedElementContentType,
+    endContentType: data.endContentType as SharedElementContentType,
+  };
+}
+
+/**
+ * Measure a node by its nativeID
+ */
+export async function measureNode(
+  nativeId: string
+): Promise<SharedElementNodeData> {
+  initializeModule();
+
+  if (nitroModule) {
+    return nitroModule.measureNode(nativeId);
   }
-}
 
-/**
- * Native SnapshotView component
- *
- * Used internally to render captured snapshots during transitions.
- * Not exported publicly - use SharedElement instead.
- */
-let _snapshotViewConfig: ReturnType<
-  typeof import('react-native-nitro-modules').getHostComponent
-> | null = null;
-
-function getSnapshotViewConfig() {
-  if (_snapshotViewConfig === null) {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    _snapshotViewConfig = require('../../nitrogen/generated/shared/json/SnapshotViewConfig.json');
+  if (turboModule) {
+    const result = await turboModule.measureNode(nativeId);
+    return convertNodeData(result);
   }
-  return _snapshotViewConfig as ReturnType<
-    typeof import('react-native-nitro-modules').getHostComponent
-  >;
-}
 
-export const NativeSnapshotView = getHostComponent<
-  SnapshotViewProps,
-  SnapshotViewMethods
->('SnapshotView', () => getSnapshotViewConfig());
-
-/**
- * Capture a snapshot of a shared element
- *
- * @param nativeId - The nativeID of the element to capture
- * @returns Promise with snapshot URI and dimensions
- */
-export async function captureSnapshot(nativeId: string) {
-  const module = getNativeModule();
-  return module.captureSnapshot(nativeId);
+  throw new Error(
+    '[SharedTransition] Native module not available. Install react-native-nitro-modules or ensure TurboModules are enabled.'
+  );
 }
 
 /**
- * Measure a shared element's layout (Fabric-safe)
- *
- * @param nativeId - The nativeID of the element to measure
- * @returns Promise with layout information
+ * Capture a snapshot of a node
  */
-export async function measureLayout(nativeId: string) {
-  const module = getNativeModule();
-  return module.measureLayout(nativeId);
+export async function captureSnapshot(nativeId: string): Promise<string> {
+  initializeModule();
+
+  if (nitroModule) {
+    return nitroModule.captureSnapshot(nativeId);
+  }
+
+  if (turboModule) {
+    return turboModule.captureSnapshot(nativeId);
+  }
+
+  throw new Error('[SharedTransition] Native module not available.');
 }
 
 /**
  * Prepare a transition between two elements
- *
- * Captures snapshots and measures both elements.
- *
- * @param sourceNativeId - Source element nativeID
- * @param targetNativeId - Target element nativeID
- * @returns Promise with source and target snapshot/layout data
  */
 export async function prepareTransition(
-  sourceNativeId: string,
-  targetNativeId: string
-) {
-  const module = getNativeModule();
-  return module.prepareTransition(sourceNativeId, targetNativeId);
+  startNodeId: string,
+  endNodeId: string,
+  config: TransitionConfig
+): Promise<PreparedTransitionData> {
+  initializeModule();
+
+  if (nitroModule) {
+    return nitroModule.prepareTransition(startNodeId, endNodeId, config);
+  }
+
+  if (turboModule) {
+    const result = await turboModule.prepareTransition(
+      startNodeId,
+      endNodeId,
+      convertConfig(config)
+    );
+    return convertPreparedTransition(result);
+  }
+
+  throw new Error('[SharedTransition] Native module not available.');
 }
 
 /**
- * Register a shared element for tracking
- *
- * @param nativeId - The nativeID of the element
- * @param transitionId - The SharedElement id prop
+ * Create a clone view for the transition overlay
  */
-export function registerElement(nativeId: string, transitionId: string) {
-  const module = getNativeModule();
-  module.registerElement(nativeId, transitionId);
+export async function createCloneView(nativeId: string): Promise<number> {
+  initializeModule();
+
+  if (nitroModule) {
+    return nitroModule.createCloneView(nativeId);
+  }
+
+  if (turboModule) {
+    return turboModule.createCloneView(nativeId);
+  }
+
+  throw new Error('[SharedTransition] Native module not available.');
 }
 
 /**
- * Unregister a shared element
- *
- * @param nativeId - The nativeID of the element
+ * Destroy a clone view
  */
-export function unregisterElement(nativeId: string) {
-  const module = getNativeModule();
-  module.unregisterElement(nativeId);
+export function destroyCloneView(viewTag: number): void {
+  initializeModule();
+
+  if (nitroModule) {
+    nitroModule.destroyCloneView(viewTag);
+    return;
+  }
+
+  if (turboModule) {
+    turboModule.destroyCloneView(viewTag);
+    return;
+  }
 }
 
 /**
- * Clean up cached snapshots
+ * Hide/show the original element during transition
  */
-export function cleanup() {
-  const module = getNativeModule();
-  module.cleanup();
+export function setNodeHidden(nativeId: string, hidden: boolean): void {
+  initializeModule();
+
+  if (nitroModule) {
+    nitroModule.setNodeHidden(nativeId, hidden);
+    return;
+  }
+
+  if (turboModule) {
+    turboModule.setNodeHidden(nativeId, hidden);
+    return;
+  }
+}
+
+/**
+ * Clean up all cached resources
+ */
+export function cleanup(): void {
+  initializeModule();
+
+  if (nitroModule) {
+    nitroModule.cleanup();
+    return;
+  }
+
+  if (turboModule) {
+    turboModule.cleanup();
+    return;
+  }
 }

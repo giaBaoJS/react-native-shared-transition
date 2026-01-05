@@ -1,228 +1,194 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import {
-  useSharedValue,
-  withTiming,
-  Easing,
-  runOnJS,
-} from 'react-native-reanimated';
+/**
+ * useSharedTransition Hook
+ *
+ * React hook for controlling shared element transitions.
+ * Works with both manual control and automatic detection.
+ *
+ * Usage:
+ * ```tsx
+ * const { progress, start, reset, state } = useSharedTransition('hero-image', {
+ *   duration: 300,
+ * });
+ *
+ * // Use progress in Reanimated animated styles
+ * const animatedStyle = useAnimatedStyle(() => ({
+ *   opacity: progress.value,
+ * }));
+ * ```
+ */
+
+import { useRef, useEffect, useState, useCallback } from 'react';
+import { Animated } from 'react-native';
+
 import type {
   SharedElementId,
-  SharedTransitionConfig,
-  SharedTransitionResult,
-  ElementLayout,
   TransitionState,
+  UseSharedTransitionConfig,
+  UseSharedTransitionResult,
 } from './types';
-import { registry } from './SharedElementRegistry';
-import {
-  isNativeModuleAvailable,
-  prepareTransition,
-  measureLayout,
-} from './native/NativeModule';
+import { SharedElementRegistry } from './SharedElementRegistry';
+
+// Default configuration
+const DEFAULT_CONFIG: Required<UseSharedTransitionConfig> = {
+  duration: 300,
+  debug: false,
+  easing: 'easeInOut',
+};
 
 /**
- * Hook for monitoring and controlling shared element transitions.
+ * useSharedTransition Hook
  *
- * Automatically detects when a matching SharedElement appears/disappears
- * and provides Reanimated shared values for custom animations.
- *
- * @param id - Shared element identifier to monitor
- * @param config - Transition configuration
- *
- * @example
- * const transition = useSharedTransition('hero-image', { duration: 400 });
- *
- * const animatedStyle = useAnimatedStyle(() => ({
- *   opacity: transition.animated.progress.value,
- *   transform: [
- *     { translateX: transition.animated.x.value },
- *     { translateY: transition.animated.y.value },
- *   ],
- * }));
+ * Provides control over a shared element transition.
  */
 export function useSharedTransition(
-  id: SharedElementId,
-  config?: SharedTransitionConfig
-): SharedTransitionResult {
-  const duration = config?.duration ?? 300;
-  const disabled = config?.disabled ?? false;
+  elementId: SharedElementId,
+  config?: UseSharedTransitionConfig
+): UseSharedTransitionResult {
+  // Merge config with defaults
+  const mergedConfig = { ...DEFAULT_CONFIG, ...config };
 
-  // Current element layout (sync)
-  const [layout, setLayout] = useState<ElementLayout | null>(null);
+  // Animation progress (0-1)
+  const progressRef = useRef(new Animated.Value(0));
+  const [progress, setProgress] = useState(0);
+
+  // Transition state
   const [state, setState] = useState<TransitionState>('idle');
+  const [error, setError] = useState<Error | null>(null);
 
-  // Reanimated shared values
-  const progress = useSharedValue(0);
-  const x = useSharedValue(0);
-  const y = useSharedValue(0);
-  const width = useSharedValue(0);
-  const height = useSharedValue(0);
+  // Track if auto-started
+  const autoStartedRef = useRef(false);
 
-  // Track if we've started transitioning
-  const hasTransitionedRef = useRef(false);
-
-  // Update state from worklet
-  const updateState = useCallback((newState: TransitionState) => {
-    setState(newState);
-  }, []);
-
-  // Start transition animation
-  const start = useCallback(() => {
-    if (disabled) return;
-
-    setState('transitioning');
-    hasTransitionedRef.current = true;
-
-    progress.value = withTiming(
-      1,
-      {
-        duration,
-        easing: Easing.out(Easing.cubic),
-      },
-      (finished?: boolean) => {
-        'worklet';
-        if (finished) {
-          runOnJS(updateState)('completed');
-        }
-      }
-    );
-  }, [disabled, duration, progress, updateState]);
-
-  // Reset transition
-  const reset = useCallback(() => {
-    progress.value = 0;
-    x.value = 0;
-    y.value = 0;
-    width.value = 0;
-    height.value = 0;
-    setState('idle');
-    hasTransitionedRef.current = false;
-  }, [progress, x, y, width, height]);
-
-  // Fetch native layout measurement
-  const fetchNativeLayout = useCallback(async () => {
-    if (!isNativeModuleAvailable()) return;
-
-    const nativeId = `shared-element-${id}`;
-    try {
-      const nativeLayout = await measureLayout(nativeId);
-      setLayout({
-        x: nativeLayout.pageX,
-        y: nativeLayout.pageY,
-        width: nativeLayout.width,
-        height: nativeLayout.height,
-      });
-    } catch {
-      // Element not mounted yet or native module unavailable
-    }
-  }, [id]);
-
-  // Automatic transition detection
+  // Subscribe to registry changes for auto-detection
   useEffect(() => {
-    if (disabled) return;
+    const unsubscribe = SharedElementRegistry.subscribe((changedId, nodes) => {
+      // Only care about our element
+      if (changedId !== elementId) return;
 
-    const unsubscribe = registry.subscribe(async (changedId) => {
-      if (changedId !== id) return;
-      if (hasTransitionedRef.current) return;
-
-      // Check if we have both source and target
-      const pair = registry.getTransitionPair(id);
-      if (!pair) return;
-
-      const { source, target } = pair;
-
-      // Try to get native layouts for precision
-      if (isNativeModuleAvailable()) {
-        try {
-          const sourceNativeId = `shared-element-${id}`;
-          const prepared = await prepareTransition(
-            sourceNativeId,
-            sourceNativeId
-          );
-
-          // Use native measurements
-          if (prepared.source.layout) {
-            x.value = prepared.source.layout.pageX;
-            y.value = prepared.source.layout.pageY;
-            width.value = prepared.source.layout.width;
-            height.value = prepared.source.layout.height;
-          }
-
-          if (prepared.target.layout) {
-            x.value = withTiming(prepared.target.layout.pageX, { duration });
-            y.value = withTiming(prepared.target.layout.pageY, { duration });
-            width.value = withTiming(prepared.target.layout.width, {
-              duration,
-            });
-            height.value = withTiming(prepared.target.layout.height, {
-              duration,
-            });
-          }
-        } catch {
-          // Fall back to JS-measured layouts
-          applyFallbackLayouts();
-        }
-      } else {
-        applyFallbackLayouts();
+      // Check if we have a transition pair
+      if (nodes.length >= 2 && !autoStartedRef.current && state === 'idle') {
+        // Auto-start transition
+        autoStartedRef.current = true;
+        startTransition();
       }
 
-      function applyFallbackLayouts() {
-        // Update layout with source position
-        if (source.layout) {
-          setLayout(source.layout);
-          x.value = source.layout.x;
-          y.value = source.layout.y;
-          width.value = source.layout.width;
-          height.value = source.layout.height;
-        }
-
-        // Animate to target position
-        if (target.layout) {
-          x.value = withTiming(target.layout.x, { duration });
-          y.value = withTiming(target.layout.y, { duration });
-          width.value = withTiming(target.layout.width, { duration });
-          height.value = withTiming(target.layout.height, { duration });
-        }
+      // Check if transition ended (one element unmounted)
+      if (nodes.length < 2 && autoStartedRef.current && state === 'running') {
+        // Auto-complete transition
+        completeTransition();
       }
-
-      // Start progress animation
-      start();
     });
 
-    return unsubscribe;
-  }, [id, disabled, duration, start, x, y, width, height]);
+    return () => {
+      unsubscribe();
+    };
+  }, [elementId, state]);
 
-  // Initial layout fetch
-  useEffect(() => {
-    if (disabled) return;
-    fetchNativeLayout();
-  }, [disabled, fetchNativeLayout]);
+  // Start the transition animation
+  const startTransition = useCallback(async () => {
+    if (state === 'running') return;
 
-  // Update current layout from registry (fallback polling)
-  useEffect(() => {
-    if (disabled) return;
-    if (isNativeModuleAvailable()) return; // Use native measurements instead
+    setState('preparing');
+    setError(null);
 
-    const interval = setInterval(() => {
-      const latest = registry.getLatest(id);
-      if (latest?.layout) {
-        setLayout(latest.layout);
+    try {
+      // Check if we have both elements
+      const pair = SharedElementRegistry.getTransitionPair(elementId);
+      if (!pair) {
+        throw new Error(`No transition pair found for element: ${elementId}`);
       }
-    }, 100); // Poll every 100ms for layout updates
 
-    return () => clearInterval(interval);
-  }, [id, disabled]);
+      setState('running');
+
+      // Animate progress from 0 to 1
+      await new Promise<void>((resolve) => {
+        Animated.timing(progressRef.current, {
+          toValue: 1,
+          duration: mergedConfig.duration,
+          useNativeDriver: false, // Need to animate layout
+        }).start(({ finished }) => {
+          if (finished) {
+            resolve();
+          }
+        });
+      });
+
+      setState('completed');
+    } catch (err) {
+      setError(err as Error);
+      setState('error');
+    }
+  }, [elementId, mergedConfig.duration, state]);
+
+  // Complete the transition
+  const completeTransition = useCallback(() => {
+    progressRef.current.setValue(1);
+    setProgress(1);
+    setState('completed');
+  }, []);
+
+  // Reset the transition
+  const reset = useCallback(() => {
+    progressRef.current.setValue(0);
+    setProgress(0);
+    setState('idle');
+    setError(null);
+    autoStartedRef.current = false;
+  }, []);
+
+  // Manual start function
+  const start = useCallback(async () => {
+    autoStartedRef.current = true;
+    await startTransition();
+  }, [startTransition]);
+
+  // Track progress value
+  useEffect(() => {
+    const listenerId = progressRef.current.addListener(({ value }) => {
+      setProgress(value);
+    });
+
+    return () => {
+      progressRef.current.removeListener(listenerId);
+    };
+  }, []);
 
   return {
-    layout,
     state,
-    animated: {
-      progress,
-      x,
-      y,
-      width,
-      height,
-    },
+    progress,
     start,
     reset,
+    error,
   };
 }
+
+/**
+ * Get the Animated.Value directly for use in animations
+ */
+export function useSharedTransitionValue(
+  elementId: SharedElementId,
+  config?: UseSharedTransitionConfig
+): {
+  animatedValue: Animated.Value;
+  state: TransitionState;
+  start: () => Promise<void>;
+  reset: () => void;
+} {
+  const result = useSharedTransition(elementId, config);
+
+  // Create a stable animated value
+  const animatedValueRef = useRef(new Animated.Value(0));
+
+  // Sync progress to animated value
+  useEffect(() => {
+    animatedValueRef.current.setValue(result.progress);
+  }, [result.progress]);
+
+  return {
+    animatedValue: animatedValueRef.current,
+    state: result.state,
+    start: result.start,
+    reset: result.reset,
+  };
+}
+
+export default useSharedTransition;

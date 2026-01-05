@@ -1,86 +1,149 @@
-import React, { useEffect, useRef, useCallback } from 'react';
-import { View, type LayoutChangeEvent } from 'react-native';
-import type { SharedElementProps } from './types';
-import { registry } from './SharedElementRegistry';
-import {
-  isNativeModuleAvailable,
-  registerElement,
-  unregisterElement,
-} from './native/NativeModule';
+/**
+ * SharedElement Component
+ *
+ * Wraps a child component and registers it for shared element transitions.
+ * Compatible with react-native-shared-element API.
+ *
+ * Usage:
+ * ```tsx
+ * <SharedElement id="hero-image">
+ *   <Image source={hero.photo} />
+ * </SharedElement>
+ * ```
+ */
+
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { View, StyleSheet } from 'react-native';
+import type { ViewStyle, StyleProp } from 'react-native';
+
+import type { SharedElementId, SharedElementNode, SharedElementProps } from './types';
+import { SharedElementRegistry } from './SharedElementRegistry';
+
+// Counter for generating unique native IDs
+let nativeIdCounter = 0;
 
 /**
- * Marks a view as a shared element for automatic transitions.
+ * Generate a unique native ID for a SharedElement instance
+ */
+function generateNativeId(transitionId: SharedElementId): string {
+  nativeIdCounter += 1;
+  return `shared-element-${transitionId}-${nativeIdCounter}`;
+}
+
+/**
+ * SharedElement Component
  *
- * When multiple SharedElement components with the same `id` are mounted
- * (e.g., navigating between screens), the library automatically detects
- * and coordinates the transition.
- *
- * @example
- * // Screen A
- * <SharedElement id="hero-image">
- *   <Image source={photo} style={styles.thumbnail} />
- * </SharedElement>
- *
- * // Screen B (after navigation)
- * <SharedElement id="hero-image">
- *   <Image source={photo} style={styles.fullscreen} />
- * </SharedElement>
- *
- * // Transition happens automatically!
+ * Wraps children and provides the node reference for transitions.
  */
 export function SharedElement({
   id,
-  children,
   style,
-  disabled = false,
-}: SharedElementProps): React.JSX.Element {
-  const timestampRef = useRef<number>(Date.now());
-  const nativeId = `shared-element-${id}`;
+  children,
+  onNode,
+}: SharedElementProps) {
+  // Generate stable nativeId for this instance
+  const nativeId = useMemo(() => generateNativeId(id), [id]);
 
-  // Register element on mount
+  // Ref for the view - using any type to avoid React Native type complexity
+  const viewRef = useRef<any>(null);
+
+  // Track if component is mounted
+  const mountedRef = useRef(true);
+
+  // Create node object
+  const node = useMemo<SharedElementNode>(
+    () => ({
+      nativeId,
+      transitionId: id,
+    }),
+    [nativeId, id]
+  );
+
+  // Register/unregister with global registry
   useEffect(() => {
-    if (disabled) return;
+    mountedRef.current = true;
 
-    const timestamp = timestampRef.current;
+    // Register this element
+    SharedElementRegistry.registerElement(id, node);
 
-    // Register with JS registry for automatic detection
-    registry.register(id, null);
-
-    // Register with native module for snapshot capture (if available)
-    if (isNativeModuleAvailable()) {
-      registerElement(nativeId, id);
-    }
+    // Notify callback
+    onNode?.(node);
 
     return () => {
-      registry.unregister(id, timestamp);
+      mountedRef.current = false;
 
-      if (isNativeModuleAvailable()) {
-        unregisterElement(nativeId);
-      }
+      // Unregister on unmount
+      SharedElementRegistry.unregisterElement(id, node);
+
+      // Notify callback
+      onNode?.(null);
     };
-  }, [id, nativeId, disabled]);
+  }, [id, node, onNode]);
 
-  // Update layout when measured
-  const handleLayout = useCallback(
-    (event: LayoutChangeEvent) => {
-      if (disabled) return;
+  // Handle layout changes
+  const handleLayout = useCallback(() => {
+    // Layout updates are handled automatically by the registry
+    // via nativeID lookup on the native side
+  }, []);
 
-      const { x, y, width, height } = event.nativeEvent.layout;
-      const timestamp = timestampRef.current;
-
-      registry.updateLayout(id, timestamp, { x, y, width, height });
-    },
-    [id, disabled]
+  // Merge styles
+  const containerStyle = useMemo<StyleProp<ViewStyle>>(
+    () => [styles.container, style],
+    [style]
   );
 
   return (
     <View
-      style={style}
-      onLayout={handleLayout}
+      ref={viewRef}
+      style={containerStyle}
       nativeID={nativeId}
-      collapsable={false} // Prevent view flattening for snapshot capture
+      collapsable={false}
+      onLayout={handleLayout}
     >
       {children}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    // Ensure the view doesn't collapse
+  },
+});
+
+// =============================================================================
+// Utility function - matches react-native-shared-element API
+// =============================================================================
+
+/**
+ * Get a node reference from a ref
+ * Utility for manual node handling
+ *
+ * @param ref - Ref to a View component with nativeID
+ * @returns SharedElementNode or null
+ */
+export function nodeFromRef(ref: View | null): SharedElementNode | null {
+  if (!ref) return null;
+
+  // Access nativeID from the view's props
+  // This works because we set collapsable={false}
+  const props = (ref as any).props;
+  const nativeId = props?.nativeID;
+
+  if (!nativeId || typeof nativeId !== 'string') {
+    return null;
+  }
+
+  // Extract transition ID from nativeId pattern: "shared-element-{id}-{counter}"
+  const match = nativeId.match(/^shared-element-(.+)-\d+$/);
+  if (!match || !match[1]) {
+    return null;
+  }
+
+  return {
+    nativeId,
+    transitionId: match[1],
+  };
+}
+
+export default SharedElement;

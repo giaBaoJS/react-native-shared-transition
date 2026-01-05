@@ -12,23 +12,26 @@ import androidx.annotation.Keep
 import com.facebook.proguard.annotations.DoNotStrip
 import com.facebook.react.uimanager.ThemedReactContext
 import com.margelo.nitro.core.Promise
-import com.margelo.nitro.core.resolve
 import java.net.URL
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
 /**
- * Native view for rendering captured snapshots during transitions
+ * Native view for rendering transition overlays
  *
- * Displays snapshot images captured from SharedElements during
- * the transition animation. The actual animation is controlled
- * by Reanimated through transform styles on this view's container.
+ * Displays snapshot images during shared element transitions.
+ * Position/scale animations are controlled via Reanimated transforms.
+ *
+ * Features:
+ * - Efficient image loading from file/data URIs
+ * - Native fade animations
+ * - Multiple resize modes
  */
 @DoNotStrip
 @Keep
-class HybridSnapshotView(
+class HybridTransitionOverlay(
     private val context: ThemedReactContext
-) : HybridSnapshotViewSpec() {
+) : HybridTransitionOverlaySpec() {
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -38,8 +41,13 @@ class HybridSnapshotView(
 
     override val view: View = containerView
 
-    // Props
+    // Props backing fields
     private var _snapshotUri: String = ""
+    private var _snapshotWidth: Double = 0.0
+    private var _snapshotHeight: Double = 0.0
+    private var _resizeMode: OverlayResizeMode = OverlayResizeMode.STRETCH
+    private var _opacity: Double = 1.0
+
     override var snapshotUri: String
         get() = _snapshotUri
         set(value) {
@@ -47,7 +55,6 @@ class HybridSnapshotView(
             loadSnapshot()
         }
 
-    private var _snapshotWidth: Double = 0.0
     override var snapshotWidth: Double
         get() = _snapshotWidth
         set(value) {
@@ -55,7 +62,6 @@ class HybridSnapshotView(
             updateLayout()
         }
 
-    private var _snapshotHeight: Double = 0.0
     override var snapshotHeight: Double
         get() = _snapshotHeight
         set(value) {
@@ -63,12 +69,18 @@ class HybridSnapshotView(
             updateLayout()
         }
 
-    private var _resizeMode: ResizeMode = ResizeMode.COVER
-    override var resizeMode: ResizeMode
+    override var resizeMode: OverlayResizeMode
         get() = _resizeMode
         set(value) {
             _resizeMode = value
             updateScaleType()
+        }
+
+    override var opacity: Double
+        get() = _opacity
+        set(value) {
+            _opacity = value
+            containerView.alpha = value.toFloat()
         }
 
     init {
@@ -77,7 +89,9 @@ class HybridSnapshotView(
 
     private fun setupViews() {
         containerView.clipChildren = true
-        imageView.scaleType = ImageView.ScaleType.CENTER_CROP
+        containerView.clipToPadding = true
+
+        imageView.scaleType = ImageView.ScaleType.FIT_XY
 
         containerView.addView(
             imageView,
@@ -92,7 +106,7 @@ class HybridSnapshotView(
         return Promise.async {
             suspendCoroutine { continuation ->
                 mainHandler.post {
-                    val animator = ObjectAnimator.ofFloat(containerView, "alpha", 1f, 0f)
+                    val animator = ObjectAnimator.ofFloat(containerView, "alpha", containerView.alpha, 0f)
                     animator.duration = duration.toLong()
                     animator.addListener(object : android.animation.AnimatorListenerAdapter() {
                         override fun onAnimationEnd(animation: android.animation.Animator) {
@@ -105,12 +119,17 @@ class HybridSnapshotView(
         }
     }
 
+    override fun updateSnapshot(uri: String) {
+        this.snapshotUri = uri
+    }
+
     private fun loadSnapshot() {
         if (_snapshotUri.isEmpty()) {
             imageView.setImageBitmap(null)
             return
         }
 
+        // Load on background thread
         Thread {
             try {
                 val bitmap = when {
@@ -136,24 +155,30 @@ class HybridSnapshotView(
                     imageView.setImageBitmap(bitmap)
                 }
             } catch (e: Exception) {
-                // Failed to load snapshot
-                e.printStackTrace()
+                // Log error but don't crash
+                android.util.Log.e("TransitionOverlay", "Failed to load snapshot: ${e.message}")
             }
         }.start()
     }
 
     private fun updateLayout() {
-        val params = imageView.layoutParams as? FrameLayout.LayoutParams
-        params?.width = _snapshotWidth.toInt()
-        params?.height = _snapshotHeight.toInt()
-        imageView.layoutParams = params
+        if (_snapshotWidth > 0 && _snapshotHeight > 0) {
+            val params = imageView.layoutParams as? FrameLayout.LayoutParams
+                ?: FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                )
+            params.width = _snapshotWidth.toInt()
+            params.height = _snapshotHeight.toInt()
+            imageView.layoutParams = params
+        }
     }
 
     private fun updateScaleType() {
         imageView.scaleType = when (_resizeMode) {
-            ResizeMode.CONTAIN -> ImageView.ScaleType.FIT_CENTER
-            ResizeMode.STRETCH -> ImageView.ScaleType.FIT_XY
-            ResizeMode.COVER -> ImageView.ScaleType.CENTER_CROP
+            OverlayResizeMode.CONTAIN -> ImageView.ScaleType.FIT_CENTER
+            OverlayResizeMode.COVER -> ImageView.ScaleType.CENTER_CROP
+            OverlayResizeMode.STRETCH -> ImageView.ScaleType.FIT_XY
         }
     }
 }
