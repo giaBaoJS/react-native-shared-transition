@@ -96,9 +96,10 @@
     "react-native-reanimated": ">=3.6.0"
   },
   "workspaces": [
-    "example"
+    "example",
+    "example-react-navigation"
   ],
-  "packageManager": "yarn@4.11.0",
+  "packageManager": "yarn@3.6.4",
   "react-native-builder-bob": {
     "source": "src",
     "output": "lib",

@@ -191,7 +191,7 @@ export async function measureNode(
 
   if (nitroModule) {
     return nitroModule.measureNode(nativeId);
-  }
+}
 
   if (turboModule) {
     const result = await turboModule.measureNode(nativeId);
@@ -232,7 +232,7 @@ export async function prepareTransition(
 
   if (nitroModule) {
     return nitroModule.prepareTransition(startNodeId, endNodeId, config);
-  }
+}
 
   if (turboModule) {
     const result = await turboModule.prepareTransition(

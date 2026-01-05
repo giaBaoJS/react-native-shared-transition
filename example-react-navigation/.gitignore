@@ -1,0 +1,106 @@
+# OSX
+.DS_Store
+
+# Xcode
+build/
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata
+*.xccheckout
+*.moved-aside
+DerivedData
+*.hmap
+*.ipa
+*.xcuserstate
+**/.xcode.env.local
+
+# Android/IntelliJ
+build/
+.idea
+.gradle
+local.properties
+*.iml
+*.hprof
+.cxx/
+*.keystore
+!debug.keystore
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Bundle artifacts
+*.jsbundle
+*.bundle
+
+# CocoaPods
+ios/Pods/
+ios/Podfile.lock
+
+# Ruby / Bundler
+vendor/bundle/
+.bundle/
+
+# Fastlane
+**/fastlane/report.xml
+**/fastlane/Preview.html
+**/fastlane/screenshots
+**/fastlane/test_output
+
+# Metro
+.metro-health-check*
+
+# Testing
+coverage/
+
+# Temporary files
+*.log
+*.tmp
+*.temp
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Bun
+bun.lock
+
+# VS Code
+.vscode/
+
+# Build outputs
+android/app/build/
+android/.gradle/
+ios/build/
+
+# Generated files
+android/app/src/main/assets/index.android.bundle
+android/app/src/main/res/drawable-*
+ios/main.jsbundle
+ios/main.jsbundle.map
+
+# Watchman
+.watchmanconfig
+
+# Expo (if used)
+.expo/
+dist/
+web-build/
+
+# Sentry
+.sentryclirc
+
+# TypeScript
+*.tsbuildinfo
+
+# React Native
+# Keep ios/Podfile but ignore Pods
+!ios/Podfile

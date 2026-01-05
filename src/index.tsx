@@ -18,14 +18,20 @@ export { SharedElementTransition } from './SharedElementTransition';
 // Hooks
 // =============================================================================
 
-export { useSharedTransition, useSharedTransitionValue } from './useSharedTransition';
+export {
+  useSharedTransition,
+  useSharedTransitionValue,
+} from './useSharedTransition';
 
 // =============================================================================
 // Registry
 // =============================================================================
 
 export { SharedElementRegistry } from './SharedElementRegistry';
-export type { TransitionPair, RegistryChangeCallback } from './SharedElementRegistry';
+export type {
+  TransitionPair,
+  RegistryChangeCallback,
+} from './SharedElementRegistry';
 
 // =============================================================================
 // Types - Public API

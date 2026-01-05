@@ -60,7 +60,7 @@ export interface SharedElementProps {
   onNode?: (node: SharedElementNode | null) => void;
 }
 
-/**
+  /**
  * Configuration for a single shared element in a transition
  */
 export interface SharedElementConfig {
@@ -170,7 +170,7 @@ export function normalizeSharedElementConfig(
       align: 'auto',
       debug: false,
     };
-  }
+}
 
   return {
     id: config.id,

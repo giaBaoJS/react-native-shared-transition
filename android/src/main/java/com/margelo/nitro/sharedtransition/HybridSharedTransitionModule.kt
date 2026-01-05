@@ -224,12 +224,12 @@ class HybridSharedTransitionModule(
     override fun cleanup() {
         mainHandler.post {
             // Remove all cached snapshots
-            cachedSnapshots.values.forEach { uri ->
-                if (uri.startsWith("file://")) {
-                    File(uri.removePrefix("file://")).delete()
-                }
+        cachedSnapshots.values.forEach { uri ->
+            if (uri.startsWith("file://")) {
+                File(uri.removePrefix("file://")).delete()
             }
-            cachedSnapshots.clear()
+        }
+        cachedSnapshots.clear()
 
             // Show all hidden elements
             hiddenElements.forEach { nativeId ->

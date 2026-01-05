@@ -1,15 +1,15 @@
 /**
  * SharedElementTransition Component
  *
- * Renders the shared element transition overlay.
- * Compatible with react-native-shared-element API.
+ * Renders the shared element transition overlay using react-native-reanimated
+ * for smooth 60fps UI thread animations.
  *
  * Usage:
  * ```tsx
  * <SharedElementTransition
  *   start={{ node: startNode, ancestor: startAncestor }}
  *   end={{ node: endNode, ancestor: endAncestor }}
- *   position={position} // Animated.Value 0-1
+ *   position={progress} // SharedValue<number> 0-1
  *   animation="move"
  *   resize="auto"
  *   align="auto"
@@ -17,14 +17,15 @@
  * ```
  */
 
-import { useEffect, useState, useMemo } from 'react';
-import {
-  View,
-  Image,
-  StyleSheet,
-  Animated,
-} from 'react-native';
+import { useEffect, useState } from 'react';
+import { View, Image, StyleSheet } from 'react-native';
 import type { ImageStyle } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useDerivedValue,
+  interpolate,
+  type SharedValue,
+} from 'react-native-reanimated';
 
 import type {
   SharedElementNode,
@@ -58,8 +59,8 @@ export interface SharedElementTransitionProps {
   start: TransitionEndpoint;
   /** End endpoint (target screen) */
   end: TransitionEndpoint;
-  /** Position value (0 = start, 1 = end) */
-  position: Animated.Value | Animated.AnimatedInterpolation<number> | number;
+  /** Position value (0 = start, 1 = end) - Reanimated SharedValue */
+  position: SharedValue<number>;
   /** Animation type */
   animation?: SharedElementAnimation;
   /** Resize behavior */
@@ -96,6 +97,8 @@ interface TransitionState {
 
 /**
  * SharedElementTransition Component
+ *
+ * Uses Reanimated exclusively for optimal performance.
  */
 export function SharedElementTransition({
   start,
@@ -103,8 +106,6 @@ export function SharedElementTransition({
   position,
   animation = 'move',
   resize = 'auto',
-  // align is reserved for future use
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   align: _align = 'auto',
   debug = false,
   onMeasure,
@@ -115,14 +116,6 @@ export function SharedElementTransition({
     isMeasuring: true,
     error: null,
   });
-
-  // Convert position to animated value if needed
-  const animPosition = useMemo(() => {
-    if (typeof position === 'number') {
-      return new Animated.Value(position);
-    }
-    return position;
-  }, [position]);
 
   // Measure both endpoints
   useEffect(() => {
@@ -148,12 +141,13 @@ export function SharedElementTransition({
 
       try {
         // Measure and capture both nodes in parallel
-        const [startData, endData, startSnapshot, endSnapshot] = await Promise.all([
-          measureNode(startNode.nativeId),
-          measureNode(endNode.nativeId),
-          captureSnapshot(startNode.nativeId),
-          captureSnapshot(endNode.nativeId),
-        ]);
+        const [startData, endData, startSnapshot, endSnapshot] =
+          await Promise.all([
+            measureNode(startNode.nativeId),
+            measureNode(endNode.nativeId),
+            captureSnapshot(startNode.nativeId),
+            captureSnapshot(endNode.nativeId),
+          ]);
 
         if (cancelled) return;
 
@@ -172,7 +166,7 @@ export function SharedElementTransition({
 
         onMeasure?.(measureData);
 
-        // Hide original elements
+        // Hide original elements during transition
         setNodeHidden(startNode.nativeId, true);
         setNodeHidden(endNode.nativeId, true);
       } catch (error) {
@@ -193,7 +187,7 @@ export function SharedElementTransition({
     return () => {
       cancelled = true;
 
-      // Show original elements again
+      // Show original elements again when transition unmounts
       if (start.node) {
         setNodeHidden(start.node.nativeId, false);
       }
@@ -215,71 +209,128 @@ export function SharedElementTransition({
     return null;
   }
 
-  const { startLayout, endLayout, startSnapshot, endSnapshot } = state.measureData;
+  const { startLayout, endLayout, startSnapshot, endSnapshot } =
+    state.measureData;
 
-  // Calculate interpolated styles
-  const containerStyle = useMemo(() => {
-    const translateX = (animPosition as Animated.Value).interpolate({
-      inputRange: [0, 1],
-      outputRange: [startLayout.x, endLayout.x],
-    });
+  return (
+    <TransitionContent
+      position={position}
+      startLayout={startLayout}
+      endLayout={endLayout}
+      startSnapshot={startSnapshot}
+      endSnapshot={endSnapshot}
+      animation={animation}
+      resize={resize}
+      debug={debug}
+    />
+  );
+}
 
-    const translateY = (animPosition as Animated.Value).interpolate({
-      inputRange: [0, 1],
-      outputRange: [startLayout.y, endLayout.y],
-    });
-
-    const width = (animPosition as Animated.Value).interpolate({
-      inputRange: [0, 1],
-      outputRange: [startLayout.width, endLayout.width],
-    });
-
-    const height = (animPosition as Animated.Value).interpolate({
-      inputRange: [0, 1],
-      outputRange: [startLayout.height, endLayout.height],
-    });
+/**
+ * Inner component that uses Reanimated hooks
+ * Separated to ensure hooks are called unconditionally
+ */
+function TransitionContent({
+  position,
+  startLayout,
+  endLayout,
+  startSnapshot,
+  endSnapshot,
+  animation,
+  resize,
+  debug,
+}: {
+  position: SharedValue<number>;
+  startLayout: SharedElementLayout;
+  endLayout: SharedElementLayout;
+  startSnapshot: string;
+  endSnapshot: string;
+  animation: SharedElementAnimation;
+  resize: SharedElementResize;
+  debug: boolean;
+}) {
+  // Container animated style - interpolates position, size
+  const containerStyle = useAnimatedStyle(() => {
+    const progress = position.value;
+    // Handle fractional progress (for screen index-based position)
+    const clampedProgress = Math.max(0, Math.min(1, progress - Math.floor(progress)));
 
     return {
-      position: 'absolute' as const,
+      position: 'absolute',
       left: 0,
       top: 0,
-      transform: [{ translateX }, { translateY }],
-      width,
-      height,
+      transform: [
+        {
+          translateX: interpolate(
+            clampedProgress,
+            [0, 1],
+            [startLayout.x, endLayout.x]
+          ),
+        },
+        {
+          translateY: interpolate(
+            clampedProgress,
+            [0, 1],
+            [startLayout.y, endLayout.y]
+          ),
+        },
+      ],
+      width: interpolate(
+        clampedProgress,
+        [0, 1],
+        [startLayout.width, endLayout.width]
+      ),
+      height: interpolate(
+        clampedProgress,
+        [0, 1],
+        [startLayout.height, endLayout.height]
+      ),
     };
-  }, [animPosition, startLayout, endLayout]);
+  }, [position, startLayout, endLayout]);
 
-  // Opacity styles for fade animations
-  const opacityStyles = useMemo(() => {
-    const startOpacity = (animPosition as Animated.Value).interpolate({
-      inputRange: [0, 1],
-      outputRange: animation === 'fade-in' ? [0, 0] : [1, 0],
-    });
+  // Derived values for opacity animations
+  const startOpacity = useDerivedValue(() => {
+    const progress = position.value - Math.floor(position.value);
+    if (animation === 'fade-in') return 0;
+    return interpolate(progress, [0, 1], [1, 0]);
+  }, [position, animation]);
 
-    const endOpacity = (animPosition as Animated.Value).interpolate({
-      inputRange: [0, 1],
-      outputRange: animation === 'fade-out' ? [0, 0] : [0, 1],
-    });
+  const endOpacity = useDerivedValue(() => {
+    const progress = position.value - Math.floor(position.value);
+    if (animation === 'fade-out') return 0;
+    return interpolate(progress, [0, 1], [0, 1]);
+  }, [position, animation]);
 
-    return { startOpacity, endOpacity };
-  }, [animPosition, animation]);
+  // Image styles
+  const startImageStyle = useAnimatedStyle(() => ({
+    opacity: startOpacity.value,
+    position: 'absolute' as const,
+    width: '100%',
+    height: '100%',
+  }));
 
-  // Render based on animation type
+  const endImageStyle = useAnimatedStyle(() => ({
+    opacity: endOpacity.value,
+    position: 'absolute' as const,
+    width: '100%',
+    height: '100%',
+  }));
+
+  // Base image style
+  const imageResizeMode =
+    resize === 'stretch' ? 'stretch' : resize === 'clip' ? 'cover' : 'cover';
+
+  const baseImageStyle: ImageStyle = {
+    width: '100%',
+    height: '100%',
+    resizeMode: imageResizeMode,
+  };
+
+  // Render content based on animation type
   const renderContent = () => {
-    const imageStyle: ImageStyle = {
-      width: '100%',
-      height: '100%',
-      resizeMode: resize === 'stretch' ? 'stretch' : resize === 'clip' ? 'cover' : 'cover',
-    };
-
     if (animation === 'move') {
       // Simple move - show start snapshot
-      return (
-        <Image
-          source={{ uri: startSnapshot }}
-          style={imageStyle}
-        />
-      );
+      return <Image source={{ uri: startSnapshot }} style={baseImageStyle} />;
     }
 
     if (animation === 'fade') {
@@ -288,11 +339,11 @@ export function SharedElementTransition({
         <>
           <Animated.Image
             source={{ uri: startSnapshot }}
-            style={[imageStyle, { opacity: opacityStyles.startOpacity, position: 'absolute' }]}
+            style={[baseImageStyle, startImageStyle]}
           />
           <Animated.Image
             source={{ uri: endSnapshot }}
-            style={[imageStyle, { opacity: opacityStyles.endOpacity, position: 'absolute' }]}
+            style={[baseImageStyle, endImageStyle]}
           />
         </>
       );
@@ -303,7 +354,7 @@ export function SharedElementTransition({
       return (
         <Animated.Image
           source={{ uri: endSnapshot }}
-          style={[imageStyle, { opacity: opacityStyles.endOpacity }]}
+          style={[baseImageStyle, endImageStyle]}
         />
       );
     }
@@ -313,7 +364,7 @@ export function SharedElementTransition({
       return (
         <Animated.Image
           source={{ uri: startSnapshot }}
-          style={[imageStyle, { opacity: opacityStyles.startOpacity }]}
+          style={[baseImageStyle, startImageStyle]}
         />
       );
     }
@@ -324,9 +375,7 @@ export function SharedElementTransition({
   return (
     <Animated.View style={containerStyle} pointerEvents="none">
       {renderContent()}
-      {debug && (
-        <View style={[StyleSheet.absoluteFill, styles.debugOverlay]} />
-      )}
+      {debug && <View style={[StyleSheet.absoluteFill, styles.debugOverlay]} />}
     </Animated.View>
   );
 }

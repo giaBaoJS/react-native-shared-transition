@@ -2,7 +2,7 @@
  * useSharedTransition Hook
  *
  * React hook for controlling shared element transitions.
- * Works with both manual control and automatic detection.
+ * Uses react-native-reanimated for smooth UI thread animations.
  *
  * Usage:
  * ```tsx
@@ -18,7 +18,13 @@
  */
 
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { Animated } from 'react-native';
+import {
+  useSharedValue,
+  withTiming,
+  runOnJS,
+  Easing,
+  type SharedValue,
+} from 'react-native-reanimated';
 
 import type {
   SharedElementId,
@@ -38,7 +44,7 @@ const DEFAULT_CONFIG: Required<UseSharedTransitionConfig> = {
 /**
  * useSharedTransition Hook
  *
- * Provides control over a shared element transition.
+ * Provides control over a shared element transition using Reanimated.
  */
 export function useSharedTransition(
   elementId: SharedElementId,
@@ -47,9 +53,8 @@ export function useSharedTransition(
   // Merge config with defaults
   const mergedConfig = { ...DEFAULT_CONFIG, ...config };
 
-  // Animation progress (0-1)
-  const progressRef = useRef(new Animated.Value(0));
-  const [progress, setProgress] = useState(0);
+  // Animation progress (0-1) using Reanimated SharedValue
+  const progress = useSharedValue(0);
 
   // Transition state
   const [state, setState] = useState<TransitionState>('idle');
@@ -57,6 +62,68 @@ export function useSharedTransition(
 
   // Track if auto-started
   const autoStartedRef = useRef(false);
+
+  // Callback to update state from worklet
+  const updateState = useCallback((newState: TransitionState) => {
+    setState(newState);
+  }, []);
+
+  // Complete the transition
+  const completeTransition = useCallback(() => {
+    progress.value = 1;
+    setState('completed');
+  }, [progress]);
+
+  // Start the transition animation
+  const startTransition = useCallback(async () => {
+    if (state === 'running') return;
+
+    setState('preparing');
+    setError(null);
+
+    try {
+      // Check if we have both elements
+      const pair = SharedElementRegistry.getTransitionPair(elementId);
+      if (!pair) {
+        throw new Error(`No transition pair found for element: ${elementId}`);
+      }
+
+      setState('running');
+
+      // Animate progress from 0 to 1 using Reanimated
+      const easing =
+        mergedConfig.easing === 'easeInOut'
+          ? Easing.inOut(Easing.ease)
+          : mergedConfig.easing === 'easeIn'
+          ? Easing.in(Easing.ease)
+          : mergedConfig.easing === 'easeOut'
+          ? Easing.out(Easing.ease)
+          : Easing.linear;
+
+      progress.value = withTiming(
+        1,
+        {
+          duration: mergedConfig.duration,
+          easing,
+        },
+        (finished) => {
+          if (finished) {
+            runOnJS(updateState)('completed');
+          }
+        }
+      );
+    } catch (err) {
+      setError(err as Error);
+      setState('error');
+    }
+  }, [
+    elementId,
+    mergedConfig.duration,
+    mergedConfig.easing,
+    state,
+    progress,
+    updateState,
+  ]);
 
   // Subscribe to registry changes for auto-detection
   useEffect(() => {
@@ -81,59 +148,15 @@ export function useSharedTransition(
     return () => {
       unsubscribe();
     };
-  }, [elementId, state]);
-
-  // Start the transition animation
-  const startTransition = useCallback(async () => {
-    if (state === 'running') return;
-
-    setState('preparing');
-    setError(null);
-
-    try {
-      // Check if we have both elements
-      const pair = SharedElementRegistry.getTransitionPair(elementId);
-      if (!pair) {
-        throw new Error(`No transition pair found for element: ${elementId}`);
-      }
-
-      setState('running');
-
-      // Animate progress from 0 to 1
-      await new Promise<void>((resolve) => {
-        Animated.timing(progressRef.current, {
-          toValue: 1,
-          duration: mergedConfig.duration,
-          useNativeDriver: false, // Need to animate layout
-        }).start(({ finished }) => {
-          if (finished) {
-            resolve();
-          }
-        });
-      });
-
-      setState('completed');
-    } catch (err) {
-      setError(err as Error);
-      setState('error');
-    }
-  }, [elementId, mergedConfig.duration, state]);
-
-  // Complete the transition
-  const completeTransition = useCallback(() => {
-    progressRef.current.setValue(1);
-    setProgress(1);
-    setState('completed');
-  }, []);
+  }, [elementId, state, startTransition, completeTransition]);
 
   // Reset the transition
   const reset = useCallback(() => {
-    progressRef.current.setValue(0);
-    setProgress(0);
+    progress.value = 0;
     setState('idle');
     setError(null);
     autoStartedRef.current = false;
-  }, []);
+  }, [progress]);
 
   // Manual start function
   const start = useCallback(async () => {
@@ -141,20 +164,9 @@ export function useSharedTransition(
     await startTransition();
   }, [startTransition]);
 
-  // Track progress value
-  useEffect(() => {
-    const listenerId = progressRef.current.addListener(({ value }) => {
-      setProgress(value);
-    });
-
-    return () => {
-      progressRef.current.removeListener(listenerId);
-    };
-  }, []);
-
   return {
     state,
-    progress,
+    progress: progress.value,
     start,
     reset,
     error,
@@ -162,32 +174,93 @@ export function useSharedTransition(
 }
 
 /**
- * Get the Animated.Value directly for use in animations
+ * Get the SharedValue directly for use in Reanimated animations
  */
 export function useSharedTransitionValue(
   elementId: SharedElementId,
   config?: UseSharedTransitionConfig
 ): {
-  animatedValue: Animated.Value;
+  progress: SharedValue<number>;
   state: TransitionState;
   start: () => Promise<void>;
   reset: () => void;
 } {
-  const result = useSharedTransition(elementId, config);
+  // Merge config with defaults
+  const mergedConfig = { ...DEFAULT_CONFIG, ...config };
 
-  // Create a stable animated value
-  const animatedValueRef = useRef(new Animated.Value(0));
+  // Animation progress using Reanimated SharedValue
+  const progress = useSharedValue(0);
 
-  // Sync progress to animated value
-  useEffect(() => {
-    animatedValueRef.current.setValue(result.progress);
-  }, [result.progress]);
+  // Transition state
+  const [state, setState] = useState<TransitionState>('idle');
+
+  // Track if auto-started
+  const autoStartedRef = useRef(false);
+
+  // Callback to update state from worklet
+  const updateState = useCallback((newState: TransitionState) => {
+    setState(newState);
+  }, []);
+
+  // Start the transition animation
+  const start = useCallback(async () => {
+    if (state === 'running') return;
+
+    setState('preparing');
+
+    // Check if we have both elements
+    const pair = SharedElementRegistry.getTransitionPair(elementId);
+    if (!pair) {
+      setState('error');
+      return;
+    }
+
+    setState('running');
+    autoStartedRef.current = true;
+
+    // Animate using Reanimated
+    const easing =
+      mergedConfig.easing === 'easeInOut'
+        ? Easing.inOut(Easing.ease)
+        : mergedConfig.easing === 'easeIn'
+        ? Easing.in(Easing.ease)
+        : mergedConfig.easing === 'easeOut'
+        ? Easing.out(Easing.ease)
+        : Easing.linear;
+
+    progress.value = withTiming(
+      1,
+      {
+        duration: mergedConfig.duration,
+        easing,
+      },
+      (finished) => {
+        if (finished) {
+          runOnJS(updateState)('completed');
+        }
+      }
+    );
+  }, [
+    elementId,
+    mergedConfig.duration,
+    mergedConfig.easing,
+    state,
+    progress,
+    updateState,
+  ]);
+
+  // Reset the transition
+  const reset = useCallback(() => {
+    progress.value = 0;
+    setState('idle');
+    autoStartedRef.current = false;
+  }, [progress]);
 
   return {
-    animatedValue: animatedValueRef.current,
-    state: result.state,
-    start: result.start,
-    reset: result.reset,
+    progress,
+    state,
+    start,
+    reset,
   };
 }
 

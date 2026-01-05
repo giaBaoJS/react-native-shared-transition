@@ -17,7 +17,7 @@ import NitroModules
  */
 class HybridSharedTransitionModule: HybridSharedTransitionModuleSpec {
 
-    // MARK: - Properties
+  // MARK: - Properties
 
     /// Cached snapshots by nativeID (URI -> file path)
     private var cachedSnapshots: [String: URL] = [:]
@@ -31,17 +31,17 @@ class HybridSharedTransitionModule: HybridSharedTransitionModuleSpec {
     /// Counter for clone view tags
     private var cloneViewTagCounter: Int = 1000
 
-    // MARK: - HybridSharedTransitionModuleSpec Implementation
+  // MARK: - HybridSharedTransitionModuleSpec Implementation
 
     func measureNode(nativeId: String) throws -> Promise<SharedElementNodeData> {
         return Promise.async {
-            guard let view = self.findViewByNativeID(nativeId) else {
+        guard let view = self.findViewByNativeID(nativeId) else {
                 throw NSError(
-                    domain: "SharedTransition",
-                    code: 404,
-                    userInfo: [NSLocalizedDescriptionKey: "View not found: \(nativeId)"]
-                )
-            }
+              domain: "SharedTransition",
+              code: 404,
+              userInfo: [NSLocalizedDescriptionKey: "View not found: \(nativeId)"]
+            )
+        }
 
             // Get frame in window coordinates (screen-relative)
             guard let window = view.window else {
@@ -65,24 +65,24 @@ class HybridSharedTransitionModule: HybridSharedTransitionModuleSpec {
                 y: Double(frameInWindow.origin.y),
                 width: Double(frameInWindow.width),
                 height: Double(frameInWindow.height)
-            )
+          )
 
             return SharedElementNodeData(
                 layout: layout,
                 contentType: contentType,
                 snapshotUri: snapshotUri
             )
-        }
     }
+  }
 
     func captureSnapshot(nativeId: String) throws -> Promise<String> {
         return Promise.async {
-            guard let view = self.findViewByNativeID(nativeId) else {
+        guard let view = self.findViewByNativeID(nativeId) else {
                 throw NSError(
-                    domain: "SharedTransition",
-                    code: 404,
-                    userInfo: [NSLocalizedDescriptionKey: "View not found: \(nativeId)"]
-                )
+              domain: "SharedTransition",
+              code: 404,
+              userInfo: [NSLocalizedDescriptionKey: "View not found: \(nativeId)"]
+            )
             }
 
             return try self.captureSnapshotSync(view: view, nativeId: nativeId)
@@ -115,10 +115,10 @@ class HybridSharedTransitionModule: HybridSharedTransitionModuleSpec {
             // Get window for coordinate conversion
             guard let window = startView.window else {
                 throw NSError(
-                    domain: "SharedTransition",
-                    code: 500,
+              domain: "SharedTransition",
+              code: 500,
                     userInfo: [NSLocalizedDescriptionKey: "Views not in window hierarchy"]
-                )
+            )
             }
 
             // Measure layouts
@@ -156,7 +156,7 @@ class HybridSharedTransitionModule: HybridSharedTransitionModuleSpec {
                 endContentType: endContentType
             )
         }
-    }
+  }
 
     func createCloneView(nativeId: String) throws -> Promise<Double> {
         return Promise.async {
@@ -217,16 +217,16 @@ class HybridSharedTransitionModule: HybridSharedTransitionModuleSpec {
                 self.hiddenElements.insert(nativeId)
             } else {
                 self.hiddenElements.remove(nativeId)
-            }
-        }
+      }
     }
+  }
 
-    func cleanup() throws {
+  func cleanup() throws {
         // Remove all cached snapshots
         for (_, url) in cachedSnapshots {
-            try? FileManager.default.removeItem(at: url)
-        }
-        cachedSnapshots.removeAll()
+        try? FileManager.default.removeItem(at: url)
+      }
+    cachedSnapshots.removeAll()
 
         // Show all hidden elements
         for nativeId in hiddenElements {
@@ -241,9 +241,9 @@ class HybridSharedTransitionModule: HybridSharedTransitionModuleSpec {
             view.removeFromSuperview()
         }
         cloneViews.removeAll()
-    }
+  }
 
-    // MARK: - Private Helpers
+  // MARK: - Private Helpers
 
     /// Capture snapshot synchronously (must be called on main thread)
     private func captureSnapshotSync(view: UIView, nativeId: String) throws -> String {
@@ -308,19 +308,19 @@ class HybridSharedTransitionModule: HybridSharedTransitionModuleSpec {
         return .snapshot
     }
 
-    /// Find a view by its nativeID prop (Fabric-safe)
-    private func findViewByNativeID(_ nativeId: String) -> UIView? {
+  /// Find a view by its nativeID prop (Fabric-safe)
+  private func findViewByNativeID(_ nativeId: String) -> UIView? {
         // Get key window from connected scenes (iOS 13+)
         guard let windowScene = UIApplication.shared.connectedScenes
-            .compactMap({ $0 as? UIWindowScene })
+      .compactMap({ $0 as? UIWindowScene })
             .first(where: { $0.activationState == .foregroundActive }),
               let window = windowScene.windows.first(where: { $0.isKeyWindow }) else {
             // Fallback for older iOS or edge cases
             return findViewByNativeIDFallback(nativeId)
-        }
-
-        return findView(withNativeID: nativeId, in: window)
     }
+
+    return findView(withNativeID: nativeId, in: window)
+  }
 
     /// Fallback window access
     private func findViewByNativeIDFallback(_ nativeId: String) -> UIView? {
@@ -331,25 +331,25 @@ class HybridSharedTransitionModule: HybridSharedTransitionModuleSpec {
     }
 
     /// Recursive view search
-    private func findView(withNativeID nativeId: String, in view: UIView) -> UIView? {
+  private func findView(withNativeID nativeId: String, in view: UIView) -> UIView? {
         // Check accessibilityIdentifier (React Native maps nativeID to this)
-        if view.accessibilityIdentifier == nativeId {
-            return view
-        }
+    if view.accessibilityIdentifier == nativeId {
+      return view
+    }
 
         // Check React Native's nativeID property using KVC (safe)
         if let viewNativeID = (view as AnyObject).value(forKeyPath: "reactTag") as? String,
-           viewNativeID == nativeId {
-            return view
-        }
+         viewNativeID == nativeId {
+        return view
+    }
 
         // Search subviews recursively
-        for subview in view.subviews {
-            if let found = findView(withNativeID: nativeId, in: subview) {
-                return found
-            }
-        }
-
-        return nil
+    for subview in view.subviews {
+      if let found = findView(withNativeID: nativeId, in: subview) {
+        return found
+      }
     }
+
+    return nil
+  }
 }
