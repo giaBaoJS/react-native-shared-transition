@@ -1,5 +1,6 @@
 /**
  * Example assets - Hero characters from One Punch Man
+ * 🦸 S-Class Heroes Showcase
  */
 
 import type { Hero } from '../types';
@@ -11,15 +12,19 @@ export const Heroes: Hero[] = [
     photo: require('./onepunch.jpg'),
     quote: 'Just an average guy who serves as an average hero',
     description:
-      'Saitama is usually deliberately drawn in a simpler style than all the other characters, with an elliptical-shaped head and only a basic mouth and eyes. When drawn in a more serious style with more detail, Saitama is revealed to have sharp features, fearsome eyes, and chiseled musculature.',
+      'Saitama is the main protagonist of One Punch Man. Although he looks unimpressive, he has the power to defeat any enemy with a single punch. Despite his overwhelming strength, he suffers from a self-imposed existential crisis, as he no longer feels the thrill of battle.',
+    rank: 0,
+    class: 'B',
   },
   {
     id: 'garou',
     name: 'Garou',
     photo: require('./garou.png'),
-    quote: 'The popular will win, the hated will lose, it\'s such a tragedy.',
+    quote: "The popular will win, the hated will lose, it's such a tragedy.",
     description:
-      'Garou is a young man with sharp features, yellow eyes, and long silver hair that spikes upwards in two large prongs, giving a feeling of a young wolf. While not being a particularly large person, he is shown to be quite muscular.',
+      'Garou is a villain, self-proclaimed "Hero Hunter" and a former disciple of Bang. He is obsessed with the concept of absolute evil and seeks to become a monster. His martial arts prowess makes him one of the most dangerous threats.',
+    rank: 0,
+    class: 'S',
   },
   {
     id: 'genos',
@@ -27,7 +32,9 @@ export const Heroes: Hero[] = [
     photo: require('./genos.jpg'),
     quote: 'Demon Cyborg',
     description:
-      'Genos is an extremely serious character. He constantly strives to become stronger and pesters Saitama to train him frequently. Since becoming Saitama\'s disciple, Genos is very reverent and protective towards his "teacher".',
+      'Genos is the deuteragonist of One Punch Man. He is a 19-year-old cyborg and the disciple of Saitama. His goal is to one day surpass his master and find the cyborg who destroyed his hometown.',
+    rank: 14,
+    class: 'S',
   },
   {
     id: 'silverfang',
@@ -35,7 +42,9 @@ export const Heroes: Hero[] = [
     photo: require('./silverfang.png'),
     quote: 'You do not need to know who the victor is within a battle using martial arts',
     description:
-      'Bang has a serious personality. His normal demeanor is very calm, shown when he is seemingly unafraid of the dragon-level meteor falling on Z-City.',
+      'Bang, also known by his hero alias Silverfang, is a professional hero, a martial arts master, and the creator of Water Stream Rock Smashing Fist. He is the 3rd ranked S-Class hero.',
+    rank: 3,
+    class: 'S',
   },
   {
     id: 'tatsumaki',
@@ -43,7 +52,9 @@ export const Heroes: Hero[] = [
     photo: require('./tatsumaki.png'),
     quote: 'To survive in this world... All you can do is get stronger',
     description:
-      'Tatsumaki has a rather brash, moody, hotheaded and impatient personality. She is disrespectful towards most people, especially to those she deems incompetent.',
+      'Tatsumaki is the S-Class Rank 2 professional hero of the Hero Association. She is recognized as one of the most powerful heroes and is the older sister of Fubuki.',
+    rank: 2,
+    class: 'S',
   },
   {
     id: 'king',
@@ -51,7 +62,9 @@ export const Heroes: Hero[] = [
     photo: require('./king.jpg'),
     quote: 'The Strongest Man on Earth',
     description:
-      'King is an S-Class hero ranked 7th by the Hero Association. In public, King is known as "The Strongest Man on Earth".',
+      'King is the S-Class Rank 7 professional hero. In public, he is known as "The Strongest Man on Earth". In truth, he is just an ordinary person who accidentally gets credit for Saitama\'s victories.',
+    rank: 7,
+    class: 'S',
   },
   {
     id: 'metalknight',
@@ -59,7 +72,9 @@ export const Heroes: Hero[] = [
     photo: require('./metalknight.jpg'),
     quote: 'Dr. Bofoi',
     description:
-      'Bofoi has white hair and a large nose. He is also seen wearing a lab coat over his blue shirt. Bofoi acts mainly through the use of his robots controlled from a safe distance.',
+      'Bofoi, also known by his hero alias Metal Knight, is the S-Class Rank 6 professional hero. He primarily operates through the use of powerful combat robots that he controls from a remote location.',
+    rank: 6,
+    class: 'S',
   },
   {
     id: 'atomicsamurai',
@@ -67,7 +82,9 @@ export const Heroes: Hero[] = [
     photo: require('./atomicsamurai.jpg'),
     quote: 'Master Swordsman',
     description:
-      'Atomic Samurai has long black hair tied in a ponytail and a defined jawline. He sports a traditional Japanese style of clothing.',
+      'Kamikaze, better known by his hero alias Atomic Samurai, is the S-Class Rank 4 professional hero. He is a master swordsman and mentor to Iaian, Bushidrill, and Okamaitachi.',
+    rank: 4,
+    class: 'S',
   },
 ];
 

@@ -1,84 +1,178 @@
 /**
- * Home Screen - List of Heroes
+ * 🏠 HomeScreen - Beautiful Hero Gallery
+ * Showcases SharedElement transitions with stunning UI
  */
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import {
   View,
-  FlatList,
-  TouchableOpacity,
-  Image,
-  StyleSheet,
   Text,
-  Dimensions,
+  StyleSheet,
+  Image,
+  Pressable,
+  FlatList,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, {
+  FadeInDown,
+  FadeInUp,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
 import { SharedElement } from 'react-native-shared-transition';
 
 import { Heroes } from '../assets';
 import type { Hero } from '../types';
 import type { HomeScreenProps } from '../navigation/types';
+import {
+  Colors,
+  CardGradients,
+  Spacing,
+  BorderRadius,
+  Typography,
+  Shadows,
+} from '../theme';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const ITEM_WIDTH = SCREEN_WIDTH / 2 - 24;
+const CARD_HEIGHT = 180;
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+// ============================================================================
+// Hero Card Component
+// ============================================================================
+
+interface HeroCardProps {
+  hero: Hero;
+  index: number;
+  onPress: () => void;
+}
+
+function HeroCard({ hero, index, onPress }: HeroCardProps) {
+  const scale = useSharedValue(1);
+  const gradientColors = CardGradients[index % CardGradients.length];
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const handlePressIn = () => {
+    scale.value = withSpring(0.97, { damping: 15, stiffness: 400 });
+  };
+
+  const handlePressOut = () => {
+    scale.value = withSpring(1, { damping: 15, stiffness: 400 });
+  };
+
+  return (
+    <AnimatedPressable
+      onPress={onPress}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      style={[styles.cardContainer, animatedStyle]}
+      entering={FadeInDown.delay(index * 80).springify()}
+    >
+      {/* Gradient Background */}
+      <View
+        style={[styles.cardGradient, { backgroundColor: gradientColors[0] }]}
+      >
+        <View
+          style={[
+            styles.cardGradientOverlay,
+            { backgroundColor: gradientColors[1], opacity: 0.6 },
+          ]}
+        />
+
+        {/* Content */}
+        <View style={styles.cardContent}>
+          {/* Hero Image */}
+          <SharedElement id={`hero.${hero.id}.photo`}>
+            <Image source={hero.photo} style={styles.heroImage} />
+          </SharedElement>
+
+          {/* Hero Info */}
+          <View style={styles.heroInfo}>
+            <SharedElement id={`hero.${hero.id}.name`}>
+              <Text style={styles.heroName}>{hero.name}</Text>
+            </SharedElement>
+
+            {hero.class && hero.rank !== undefined && (
+              <View style={styles.rankBadge}>
+                <Text style={styles.rankText}>
+                  {hero.class}-Class {hero.rank > 0 ? `#${hero.rank}` : ''}
+                </Text>
+              </View>
+            )}
+
+            <Text style={styles.heroQuote} numberOfLines={2}>
+              "{hero.quote}"
+            </Text>
+          </View>
+        </View>
+
+        {/* Decorative Elements */}
+        <View style={[styles.decorCircle, styles.decorCircle1]} />
+        <View style={[styles.decorCircle, styles.decorCircle2]} />
+      </View>
+    </AnimatedPressable>
+  );
+}
+
+// ============================================================================
+// Header Component
+// ============================================================================
+
+function Header() {
+  return (
+    <Animated.View
+      style={styles.header}
+      entering={FadeInUp.delay(100).springify()}
+    >
+      <Text style={styles.headerEmoji}>⚡</Text>
+      <View>
+        <Text style={styles.headerTitle}>Hero Gallery</Text>
+        <Text style={styles.headerSubtitle}>
+          Tap a hero to see shared transitions
+        </Text>
+      </View>
+    </Animated.View>
+  );
+}
+
+// ============================================================================
+// Main Screen
+// ============================================================================
 
 export function HomeScreen({ navigation }: HomeScreenProps) {
-  const handlePress = useCallback(
-    (hero: Hero) => {
-      navigation.navigate('Detail', { hero });
+  const insets = useSafeAreaInsets();
+
+  const handleHeroPress = useCallback(
+    (hero: Hero, index: number) => {
+      navigation.navigate('Detail', { hero, index });
     },
     [navigation]
-  );
-
-  const handleLongPress = useCallback(
-    (hero: Hero) => {
-      // Long press to open demo screen
-      navigation.navigate('Demo', { hero });
-    },
-    [navigation]
-  );
-
-  const handleDebugPress = useCallback(() => {
-    navigation.navigate('Debug');
-  }, [navigation]);
-
-  const renderHeader = useCallback(
-    () => (
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>🚀 Shared Transition Demo</Text>
-        <Text style={styles.headerSubtitle}>
-          Tap a card to see Detail Screen{'\n'}
-          Long press to see Transition Demo
-        </Text>
-
-        {/* Debug Button */}
-        <TouchableOpacity style={styles.debugButton} onPress={handleDebugPress}>
-          <Text style={styles.debugButtonText}>🔧 Debug Native Module</Text>
-        </TouchableOpacity>
-      </View>
-    ),
-    [handleDebugPress]
   );
 
   const renderItem = useCallback(
-    ({ item }: { item: Hero }) => (
-      <TouchableOpacity
-        style={styles.item}
-        activeOpacity={0.9}
-        onPress={() => handlePress(item)}
-        onLongPress={() => handleLongPress(item)}
-        delayLongPress={300}
-      >
-        <SharedElement id={`hero.${item.id}.photo`}>
-          <Image source={item.photo} style={styles.image} resizeMode="cover" />
-        </SharedElement>
-
-        <View style={styles.nameContainer}>
-          <Text style={styles.name}>{item.name}</Text>
-          <Text style={styles.hint}>Long press for demo</Text>
-        </View>
-      </TouchableOpacity>
+    ({ item, index }: { item: Hero; index: number }) => (
+      <HeroCard
+        hero={item}
+        index={index}
+        onPress={() => handleHeroPress(item, index)}
+      />
     ),
-    [handlePress, handleLongPress]
+    [handleHeroPress]
+  );
+
+  const keyExtractor = useCallback((item: Hero) => item.id, []);
+
+  const contentContainerStyle = useMemo(
+    () => ({
+      paddingTop: insets.top + Spacing.lg,
+      paddingBottom: insets.bottom + Spacing.xxxl,
+      paddingHorizontal: Spacing.lg,
+    }),
+    [insets]
   );
 
   return (
@@ -86,80 +180,130 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
       <FlatList
         data={Heroes}
         renderItem={renderItem}
-        keyExtractor={(item) => item.id}
-        numColumns={2}
-        contentContainerStyle={styles.list}
+        keyExtractor={keyExtractor}
+        contentContainerStyle={contentContainerStyle}
+        ListHeaderComponent={Header}
         showsVerticalScrollIndicator={false}
-        ListHeaderComponent={renderHeader}
       />
     </View>
   );
 }
 
+// ============================================================================
+// Styles
+// ============================================================================
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: Colors.background.primary,
   },
+
+  // Header
   header: {
-    padding: 16,
-    paddingBottom: 8,
+    flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: Spacing.xxl,
+    paddingHorizontal: Spacing.sm,
+  },
+  headerEmoji: {
+    fontSize: 48,
+    marginRight: Spacing.lg,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#2c3e50',
-    marginBottom: 8,
+    fontSize: Typography.fontSize.xxxl,
+    fontWeight: '800',
+    color: Colors.text.primary,
+    letterSpacing: -0.5,
   },
   headerSubtitle: {
-    fontSize: 14,
-    color: '#7f8c8d',
-    textAlign: 'center',
-    lineHeight: 20,
+    fontSize: Typography.fontSize.md,
+    color: Colors.text.secondary,
+    marginTop: Spacing.xs,
   },
-  debugButton: {
-    marginTop: 12,
-    backgroundColor: '#e74c3c',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 8,
+
+  // Card
+  cardContainer: {
+    marginBottom: Spacing.lg,
+    borderRadius: BorderRadius.xl,
+    ...Shadows.lg,
   },
-  debugButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  list: {
-    padding: 12,
-  },
-  item: {
-    width: ITEM_WIDTH,
-    margin: 6,
-    backgroundColor: '#fff',
-    borderRadius: 12,
+  cardGradient: {
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    height: CARD_HEIGHT,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
   },
-  image: {
-    width: '100%',
-    height: ITEM_WIDTH,
+  cardGradientOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: BorderRadius.xl,
   },
-  nameContainer: {
-    padding: 12,
+  cardContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    zIndex: 1,
   },
-  name: {
-    fontSize: 16,
+
+  // Hero Image
+  heroImage: {
+    width: 110,
+    height: 110,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.8)',
+  },
+
+  // Hero Info
+  heroInfo: {
+    flex: 1,
+    marginLeft: Spacing.lg,
+  },
+  heroName: {
+    fontSize: Typography.fontSize.xxl,
+    fontWeight: '700',
+    color: Colors.text.primary,
+    marginBottom: Spacing.xs,
+  },
+  rankBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
+    marginBottom: Spacing.sm,
+  },
+  rankText: {
+    fontSize: Typography.fontSize.xs,
     fontWeight: '600',
-    color: '#333',
+    color: Colors.text.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  hint: {
-    fontSize: 11,
-    color: '#95a5a6',
-    marginTop: 4,
+  heroQuote: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.text.primary,
+    fontStyle: 'italic',
+    opacity: 0.8,
+    lineHeight: Typography.fontSize.sm * Typography.lineHeight.relaxed,
+  },
+
+  // Decorative
+  decorCircle: {
+    position: 'absolute',
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  decorCircle1: {
+    width: 100,
+    height: 100,
+    top: -30,
+    right: -20,
+  },
+  decorCircle2: {
+    width: 60,
+    height: 60,
+    bottom: -15,
+    right: 40,
   },
 });

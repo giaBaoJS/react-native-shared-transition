@@ -8,6 +8,8 @@ export type Hero = {
   photo: any;
   quote?: string;
   description?: string;
+  rank?: number;
+  class?: 'S' | 'A' | 'B' | 'C';
 };
 
 export type SharedElementConfig = {
