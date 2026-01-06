@@ -330,26 +330,25 @@ class HybridSharedTransitionModule: HybridSharedTransitionModuleSpec {
         return findView(withNativeID: nativeId, in: window)
     }
 
-    /// Recursive view search
-  private func findView(withNativeID nativeId: String, in view: UIView) -> UIView? {
-        // Check accessibilityIdentifier (React Native maps nativeID to this)
-    if view.accessibilityIdentifier == nativeId {
-      return view
-    }
-
-        // Check React Native's nativeID property using KVC (safe)
-        if let viewNativeID = (view as AnyObject).value(forKeyPath: "reactTag") as? String,
-         viewNativeID == nativeId {
-        return view
-    }
+    /// Recursive view search with multiple strategies for Fabric compatibility
+    private func findView(withNativeID nativeId: String, in view: UIView) -> UIView? {
+        // Strategy 1: Check accessibilityIdentifier (React Native maps testID to this)
+        if view.accessibilityIdentifier == nativeId {
+            return view
+        }
+        
+        // Strategy 2: Check accessibilityLabel (React Native maps accessibilityLabel to this)
+        if view.accessibilityLabel == nativeId {
+            return view
+        }
 
         // Search subviews recursively
-    for subview in view.subviews {
-      if let found = findView(withNativeID: nativeId, in: subview) {
-        return found
-      }
-    }
+        for subview in view.subviews {
+            if let found = findView(withNativeID: nativeId, in: subview) {
+                return found
+            }
+        }
 
-    return nil
-  }
+        return nil
+    }
 }

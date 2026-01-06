@@ -3220,7 +3220,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@react-navigation/native@npm:^7.1.6":
+"@react-navigation/native@npm:^7.0.0, @react-navigation/native@npm:^7.1.6":
   version: 7.1.26
   resolution: "@react-navigation/native@npm:7.1.26"
   dependencies:
@@ -10377,33 +10377,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react-native-shared-transition-example@workspace:example":
-  version: 0.0.0-use.local
-  resolution: "react-native-shared-transition-example@workspace:example"
-  dependencies:
-    "@babel/core": ^7.25.2
-    "@babel/preset-env": ^7.25.3
-    "@babel/runtime": ^7.25.0
-    "@react-native-community/cli": 20.0.0
-    "@react-native-community/cli-platform-android": 20.0.0
-    "@react-native-community/cli-platform-ios": 20.0.0
-    "@react-native/babel-preset": 0.83.0
-    "@react-native/metro-config": 0.83.0
-    "@react-native/typescript-config": 0.83.0
-    "@types/react": ^19.2.0
-    react: 19.2.0
-    react-native: 0.83.0
-    react-native-builder-bob: ^0.40.13
-    react-native-gesture-handler: ^2.30.0
-    react-native-monorepo-config: ^0.3.1
-    react-native-nitro-modules: ^0.32.0
-    react-native-reanimated: ^4.2.1
-    react-native-safe-area-context: ^5.6.2
-    react-native-screens: ^4.19.0
-    react-native-worklets: ^0.7.1
-  languageName: unknown
-  linkType: soft
-
 "react-native-shared-transition-nav-example@workspace:example-react-navigation":
   version: 0.0.0-use.local
   resolution: "react-native-shared-transition-nav-example@workspace:example-react-navigation"
@@ -10444,6 +10417,7 @@ __metadata:
     "@eslint/js": ^9.35.0
     "@react-native/babel-preset": 0.83.0
     "@react-native/eslint-config": 0.83.0
+    "@react-navigation/native": ^7.0.0
     "@release-it/conventional-changelog": ^10.0.1
     "@types/jest": ^29.5.14
     "@types/react": ^19.2.0
@@ -10465,10 +10439,14 @@ __metadata:
     turbo: ^2.5.6
     typescript: ^5.9.2
   peerDependencies:
+    "@react-navigation/native": ">=6.0.0"
     react: "*"
     react-native: "*"
     react-native-nitro-modules: ^0.32.0
     react-native-reanimated: ">=3.6.0"
+  peerDependenciesMeta:
+    "@react-navigation/native":
+      optional: true
   languageName: unknown
   linkType: soft
 

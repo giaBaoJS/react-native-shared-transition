@@ -253,7 +253,10 @@ function TransitionContent({
   const containerStyle = useAnimatedStyle(() => {
     const progress = position.value;
     // Handle fractional progress (for screen index-based position)
-    const clampedProgress = Math.max(0, Math.min(1, progress - Math.floor(progress)));
+    const clampedProgress = Math.max(
+      0,
+      Math.min(1, progress - Math.floor(progress))
+    );
 
     return {
       position: 'absolute',

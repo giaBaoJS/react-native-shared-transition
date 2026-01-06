@@ -149,6 +149,24 @@ class SharedElementRegistryImpl {
   }
 
   /**
+   * Get all transition pairs at once
+   */
+  getAllTransitionPairs(): Array<
+    { elementId: SharedElementId } & TransitionPair
+  > {
+    const pairs: Array<{ elementId: SharedElementId } & TransitionPair> = [];
+
+    this.elements.forEach((_, id) => {
+      const pair = this.getTransitionPair(id);
+      if (pair) {
+        pairs.push({ elementId: id, ...pair });
+      }
+    });
+
+    return pairs;
+  }
+
+  /**
    * Subscribe to element changes
    */
   subscribe(callback: RegistryChangeCallback): () => void {
