@@ -10377,9 +10377,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react-native-shared-transition-nav-example@workspace:example-react-navigation":
+"react-native-shared-transition-nav-example@workspace:example":
   version: 0.0.0-use.local
-  resolution: "react-native-shared-transition-nav-example@workspace:example-react-navigation"
+  resolution: "react-native-shared-transition-nav-example@workspace:example"
   dependencies:
     "@babel/core": ^7.25.2
     "@babel/preset-env": ^7.25.3

@@ -7,7 +7,7 @@
  * - SharedElementRegistry
  */
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -66,7 +66,10 @@ export function DebugScreen() {
   // Test measureNode
   const testMeasureNode = useCallback(async () => {
     if (!node) {
-      Alert.alert('Error', 'No node registered. Wait for SharedElement to mount.');
+      Alert.alert(
+        'Error',
+        'No node registered. Wait for SharedElement to mount.'
+      );
       return;
     }
 
@@ -90,7 +93,10 @@ export function DebugScreen() {
   // Test captureSnapshot
   const testCaptureSnapshot = useCallback(async () => {
     if (!node) {
-      Alert.alert('Error', 'No node registered. Wait for SharedElement to mount.');
+      Alert.alert(
+        'Error',
+        'No node registered. Wait for SharedElement to mount.'
+      );
       return;
     }
 
@@ -118,7 +124,12 @@ export function DebugScreen() {
         <Text style={styles.sectionTitle}>📊 Native Module Status</Text>
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Available:</Text>
-          <Text style={[styles.infoValue, moduleAvailable ? styles.success : styles.error]}>
+          <Text
+            style={[
+              styles.infoValue,
+              moduleAvailable ? styles.success : styles.error,
+            ]}
+          >
             {moduleAvailable ? '✅ Yes' : '❌ No'}
           </Text>
         </View>
@@ -128,7 +139,9 @@ export function DebugScreen() {
         </View>
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Using Nitro:</Text>
-          <Text style={styles.infoValue}>{usingNitro ? '✅ Yes' : '❌ No (TurboModule)'}</Text>
+          <Text style={styles.infoValue}>
+            {usingNitro ? '✅ Yes' : '❌ No (TurboModule)'}
+          </Text>
         </View>
       </View>
 
@@ -142,7 +155,9 @@ export function DebugScreen() {
         </View>
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Node ID:</Text>
-          <Text style={styles.infoValue}>{node?.nativeId || 'Not registered'}</Text>
+          <Text style={styles.infoValue}>
+            {node?.nativeId || 'Not registered'}
+          </Text>
         </View>
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Transition ID:</Text>
@@ -157,7 +172,9 @@ export function DebugScreen() {
           <Text style={styles.buttonText}>Refresh Registry Info</Text>
         </TouchableOpacity>
         <View style={styles.codeBlock}>
-          <Text style={styles.codeText}>{registryInfo || 'Press button to load'}</Text>
+          <Text style={styles.codeText}>
+            {registryInfo || 'Press button to load'}
+          </Text>
         </View>
       </View>
 
@@ -165,7 +182,11 @@ export function DebugScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>📐 Test measureNode()</Text>
         <TouchableOpacity
-          style={[styles.button, styles.primaryButton, loading && styles.buttonDisabled]}
+          style={[
+            styles.button,
+            styles.primaryButton,
+            loading && styles.buttonDisabled,
+          ]}
           onPress={testMeasureNode}
           disabled={loading}
         >
@@ -186,7 +207,11 @@ export function DebugScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>📸 Test captureSnapshot()</Text>
         <TouchableOpacity
-          style={[styles.button, styles.secondaryButton, loading && styles.buttonDisabled]}
+          style={[
+            styles.button,
+            styles.secondaryButton,
+            loading && styles.buttonDisabled,
+          ]}
           onPress={testCaptureSnapshot}
           disabled={loading}
         >

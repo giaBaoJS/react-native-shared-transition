@@ -290,7 +290,7 @@ react-native-shared-transition/
 │   └── specs/                    # Nitro & Turbo specs
 ├── ios/                          # iOS native code (Swift)
 ├── android/                      # Android native code (Kotlin)
-├── example-react-navigation/     # Example app
+├── example/     # Example app
 └── docs/                         # Documentation
 ```
 
@@ -307,7 +307,7 @@ cd react-native-shared-transition
 yarn install
 
 # Run example app
-cd example-react-navigation
+cd example
 yarn ios   # or yarn android
 ```
 

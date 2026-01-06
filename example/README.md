@@ -5,7 +5,7 @@ This example demonstrates the basic integration of `react-native-shared-transiti
 ## Setup
 
 ```bash
-cd example-react-navigation
+cd example
 
 # Install dependencies
 yarn install
@@ -26,7 +26,7 @@ yarn android
 ## Structure
 
 ```
-example-react-navigation/
+example/
 ├── src/
 │   ├── App.tsx                 # Entry with NavigationContainer
 │   ├── assets/                 # Hero images
