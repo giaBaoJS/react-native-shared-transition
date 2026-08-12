@@ -14,3 +14,4 @@ gem 'bigdecimal'
 gem 'logger'
 gem 'benchmark'
 gem 'mutex_m'
+gem 'nkf' # provides kconv, removed from the stdlib in Ruby 3.4 (needed by CocoaPods)
