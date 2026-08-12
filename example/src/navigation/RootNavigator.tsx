@@ -1,32 +1,28 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
-import { HomeScreen } from '../screens/HomeScreen';
+import { GalleryScreen } from '../screens/GalleryScreen';
 import { DetailScreen } from '../screens/DetailScreen';
+import { useTheme } from '../theme';
 import type { RootStackParamList } from './types';
-import { Colors } from '../theme';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export function RootNavigator() {
+  const theme = useTheme();
+
   return (
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: Colors.background.primary },
+        contentStyle: { backgroundColor: theme.color.canvas },
+        // A cross-fade keeps the screens themselves out of the way so the
+        // shared elements are what the eye follows.
         animation: 'fade',
-        animationDuration: 350,
+        animationDuration: 300,
       }}
     >
-      <Stack.Screen name="Home" component={HomeScreen} />
-      <Stack.Screen
-        name="Detail"
-        component={DetailScreen}
-        options={{
-          animation: 'fade',
-          animationDuration: 400,
-          presentation: 'card',
-        }}
-      />
+      <Stack.Screen name="Gallery" component={GalleryScreen} />
+      <Stack.Screen name="Detail" component={DetailScreen} />
     </Stack.Navigator>
   );
 }

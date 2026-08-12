@@ -1,495 +1,306 @@
 /**
- * 🦸 DetailScreen - Hero Detail View with Animations
- * Showcases shared element transitions in action
+ * DetailScreen
+ *
+ * An immersive hero screen. The photograph and the title are the two shared
+ * elements — neither they nor any ancestor may carry an entrance animation, or
+ * the coordinator would measure a frame that is still moving. Everything below
+ * the fold is free to animate in.
  */
 
-import { useEffect } from 'react';
+import { useCallback } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
   Image,
   ScrollView,
-  Pressable,
-  Dimensions,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, {
-  FadeIn,
-  FadeInDown,
-  FadeInUp,
-  SlideInRight,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withDelay,
-  withTiming,
-} from 'react-native-reanimated';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SharedElement } from 'react-native-shared-transition';
 
+import { PressableScale } from '../components/PressableScale';
+import { Scrim } from '../components/Scrim';
+import { getDestination } from '../data/destinations';
+import { useTheme } from '../theme';
+import { useTransitionVariant } from '../transition/variants';
 import type { DetailScreenProps } from '../navigation/types';
-import {
-  Colors,
-  CardGradients,
-  Spacing,
-  BorderRadius,
-  Typography,
-  Shadows,
-} from '../theme';
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const IMAGE_SIZE = SCREEN_WIDTH * 0.55;
-
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-
-// ============================================================================
-// Back Button Component
-// ============================================================================
-
-function BackButton({ onPress }: { onPress: () => void }) {
-  const scale = useSharedValue(1);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
-
-  return (
-    <AnimatedPressable
-      onPress={onPress}
-      onPressIn={() => {
-        scale.value = withSpring(0.9);
-      }}
-      onPressOut={() => {
-        scale.value = withSpring(1);
-      }}
-      style={[styles.backButton, animatedStyle]}
-      entering={FadeIn.delay(300)}
-    >
-      <Text style={styles.backButtonText}>←</Text>
-    </AnimatedPressable>
-  );
-}
-
-// ============================================================================
-// Stat Card Component
-// ============================================================================
-
-interface StatCardProps {
-  icon: string;
-  label: string;
-  value: string;
-  delay: number;
-}
-
-function StatCard({ icon, label, value, delay }: StatCardProps) {
-  return (
-    <Animated.View
-      style={styles.statCard}
-      entering={SlideInRight.delay(delay).springify()}
-    >
-      <Text style={styles.statIcon}>{icon}</Text>
-      <View>
-        <Text style={styles.statValue}>{value}</Text>
-        <Text style={styles.statLabel}>{label}</Text>
-      </View>
-    </Animated.View>
-  );
-}
-
-// ============================================================================
-// Main Screen
-// ============================================================================
 
 export function DetailScreen({ route, navigation }: DetailScreenProps) {
-  const { hero, index } = route.params;
+  const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const gradientColors =
-    CardGradients[index % CardGradients.length] ?? CardGradients[0];
+  const { height: screenHeight } = useWindowDimensions();
+  const { variant } = useTransitionVariant();
 
-  // Animated values — note: the shared image itself must NOT have an
-  // entrance animation; the transition overlay animates it instead.
-  const contentOpacity = useSharedValue(0);
+  const destination = getDestination(route.params.id);
 
-  useEffect(() => {
-    contentOpacity.value = withDelay(200, withTiming(1, { duration: 400 }));
-  }, [contentOpacity]);
+  const handleBack = useCallback(() => navigation.goBack(), [navigation]);
 
-  const handleBack = () => {
-    navigation.goBack();
-  };
-
-  return (
-    <View style={styles.container}>
-      {/* Background Gradient */}
+  if (!destination) {
+    // Defensive: a bad deep link should not crash the demo.
+    return (
       <View
         style={[
-          styles.backgroundGradient,
-          { backgroundColor: gradientColors[0] },
+          styles.screen,
+          styles.centered,
+          { backgroundColor: theme.color.canvas },
         ]}
       >
-        <View
-          style={[
-            styles.backgroundOverlay,
-            { backgroundColor: gradientColors[1] },
-          ]}
-        />
+        <Text style={[theme.type.body, { color: theme.color.textSecondary }]}>
+          That frame is no longer in the archive.
+        </Text>
       </View>
+    );
+  }
 
-      {/* Decorative Circles */}
-      <Animated.View
-        style={[styles.decorCircle, styles.decorCircle1]}
-        entering={FadeIn.delay(400)}
-      />
-      <Animated.View
-        style={[styles.decorCircle, styles.decorCircle2]}
-        entering={FadeIn.delay(500)}
-      />
-      <Animated.View
-        style={[styles.decorCircle, styles.decorCircle3]}
-        entering={FadeIn.delay(600)}
-      />
+  const heroHeight = Math.round(screenHeight * 0.56);
 
-      {/* Back Button */}
-      <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}>
-        <BackButton onPress={handleBack} />
-      </View>
-
+  return (
+    <View style={[styles.screen, { backgroundColor: theme.color.canvas }]}>
       <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: insets.bottom + Spacing.xxxl },
-        ]}
         showsVerticalScrollIndicator={false}
+        contentInsetAdjustmentBehavior="never"
+        contentContainerStyle={{
+          paddingBottom: insets.bottom + theme.space.huge,
+        }}
       >
-        {/* Hero Image */}
-        <View style={styles.imageContainer}>
-          <SharedElement id={`hero.${hero.id}.photo`} config={hero.transition}>
-            <Image source={hero.photo} style={styles.heroImage} />
-          </SharedElement>
-
-          {/* Glow Effect */}
-          <View
-            style={[styles.imageGlow, { backgroundColor: gradientColors[1] }]}
-          />
-        </View>
-
-        {/* Hero Name */}
-        <Animated.View
-          style={styles.nameContainer}
-          entering={FadeInUp.delay(150).springify()}
-        >
+        {/* Hero — no entrance animation anywhere in this subtree. */}
+        <View style={[styles.hero, { height: heroHeight }]}>
           <SharedElement
-            id={`hero.${hero.id}.name`}
-            config={{ contentScale: 'transform', crossFade: true }}
+            id={`dest.${destination.id}.photo`}
+            style={StyleSheet.absoluteFill}
           >
-            <Text style={styles.heroName}>{hero.name}</Text>
+            <Image
+              source={destination.photo}
+              style={styles.heroImage}
+              resizeMode="cover"
+            />
           </SharedElement>
 
-          {hero.class && (
-            <View style={styles.classBadge}>
-              <Text style={styles.classText}>
-                {hero.class}-Class{' '}
-                {hero.rank && hero.rank > 0 ? `Rank #${hero.rank}` : 'Hero'}
+          <Scrim
+            color={theme.color.scrim}
+            intensity={0.94}
+            style={styles.heroScrim}
+          />
+
+          <View
+            style={[
+              styles.heroContent,
+              {
+                paddingBottom: theme.space.xxl,
+                paddingHorizontal: theme.space.xxl,
+              },
+            ]}
+          >
+            <View style={styles.metaRow}>
+              <View
+                style={[styles.swatch, { backgroundColor: destination.swatch }]}
+              />
+              <Text
+                style={[
+                  theme.type.overline,
+                  styles.overline,
+                  { color: theme.color.textOnImage },
+                ]}
+              >
+                {destination.region.toUpperCase()} ·{' '}
+                {destination.hour.toUpperCase()}
               </Text>
             </View>
-          )}
 
-          {hero.transitionLabel && (
-            <View style={styles.transitionBadge}>
-              <Text style={styles.transitionBadgeText}>
-                {hero.transitionLabel}
+            <SharedElement
+              id={`dest.${destination.id}.title`}
+              config={{ contentScale: 'transform', crossFade: true }}
+            >
+              <Text
+                style={[theme.type.display, { color: theme.color.textOnImage }]}
+              >
+                {destination.title}
               </Text>
-            </View>
-          )}
-        </Animated.View>
-
-        {/* Stats */}
-        <View style={styles.statsContainer}>
-          <StatCard icon="◆" label="Power" value="∞" delay={250} />
-          <StatCard icon="●" label="Defense" value="MAX" delay={350} />
-          <StatCard icon="▲" label="Speed" value="S+" delay={450} />
+            </SharedElement>
+          </View>
         </View>
 
-        {/* Quote */}
-        <Animated.View
-          style={styles.quoteContainer}
-          entering={FadeInDown.delay(400).springify()}
-        >
-          <Text style={styles.quoteIcon}>“</Text>
-          <Text style={styles.quoteText}>"{hero.quote}"</Text>
-        </Animated.View>
+        {/* Body */}
+        <View style={[styles.body, { paddingHorizontal: theme.space.xxl }]}>
+          <Animated.Text
+            entering={FadeInDown.delay(90).springify().damping(18)}
+            style={[
+              theme.type.title3,
+              styles.lead,
+              { color: theme.color.textPrimary },
+            ]}
+          >
+            {destination.tagline}
+          </Animated.Text>
 
-        {/* Description */}
-        <Animated.View
-          style={styles.descriptionContainer}
-          entering={FadeInDown.delay(500).springify()}
-        >
-          <Text style={styles.sectionTitle}>About</Text>
-          <Text style={styles.descriptionText}>{hero.description}</Text>
-        </Animated.View>
+          {destination.body.map((paragraph, i) => (
+            <Animated.Text
+              key={i}
+              entering={FadeInDown.delay(150 + i * 70)
+                .springify()
+                .damping(18)}
+              style={[
+                theme.type.body,
+                styles.paragraph,
+                { color: theme.color.textSecondary },
+              ]}
+            >
+              {paragraph}
+            </Animated.Text>
+          ))}
 
-        {/* Action Buttons */}
-        <Animated.View
-          style={styles.actionsContainer}
-          entering={FadeInUp.delay(600).springify()}
-        >
-          <Pressable style={styles.primaryButton}>
-            <Text style={styles.primaryButtonText}>View Abilities</Text>
-          </Pressable>
-          <Pressable style={styles.secondaryButton}>
-            <Text style={styles.secondaryButtonText}>Share Hero</Text>
-          </Pressable>
-        </Animated.View>
+          {/* What just happened — makes the demo self-explanatory. */}
+          <Animated.View
+            entering={FadeInDown.delay(320).springify().damping(18)}
+            style={[
+              styles.configCard,
+              {
+                backgroundColor: theme.color.surface,
+                borderColor: theme.color.border,
+                borderRadius: theme.radius.md,
+                padding: theme.space.lg,
+              },
+            ]}
+          >
+            <Text style={[theme.type.overline, { color: theme.color.accent }]}>
+              TRANSITION USED
+            </Text>
+            <Text
+              style={[
+                theme.type.title3,
+                styles.configTitle,
+                { color: theme.color.textPrimary },
+              ]}
+            >
+              {variant.label}
+            </Text>
+            <Text
+              style={[theme.type.caption, { color: theme.color.textTertiary }]}
+            >
+              {variant.hint}
+            </Text>
+            <Text
+              style={[
+                theme.type.caption,
+                styles.configCode,
+                {
+                  color: theme.color.textSecondary,
+                  backgroundColor: theme.color.surfaceRaised,
+                  borderRadius: theme.radius.xs,
+                },
+              ]}
+            >
+              {JSON.stringify(variant.config, null, 2)}
+            </Text>
+          </Animated.View>
+        </View>
       </ScrollView>
+
+      {/* Back affordance — outside the scroll view, above the safe area. */}
+      <View
+        style={[
+          styles.backLayer,
+          { top: insets.top + theme.space.sm, left: theme.space.lg },
+        ]}
+        pointerEvents="box-none"
+      >
+        <PressableScale
+          onPress={handleBack}
+          activeScale={0.9}
+          accessibilityLabel="Back to the gallery"
+          style={[
+            styles.backButton,
+            {
+              backgroundColor: theme.color.controlOnImage,
+              borderColor: theme.color.borderOnImage,
+              borderRadius: theme.radius.full,
+            },
+          ]}
+        >
+          <Text style={[styles.backGlyph, { color: theme.color.textOnImage }]}>
+            ‹
+          </Text>
+        </PressableScale>
+      </View>
     </View>
   );
 }
 
-// ============================================================================
-// Styles
-// ============================================================================
-
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background.primary,
-  },
+  screen: { flex: 1 },
+  centered: { alignItems: 'center', justifyContent: 'center' },
 
-  // Background
-  backgroundGradient: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: SCREEN_HEIGHT * 0.5,
-    borderBottomLeftRadius: 40,
-    borderBottomRightRadius: 40,
-  },
-  backgroundOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    opacity: 0.4,
-    borderBottomLeftRadius: 40,
-    borderBottomRightRadius: 40,
-  },
-
-  // Decorative
-  decorCircle: {
-    position: 'absolute',
-    borderRadius: 999,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-  },
-  decorCircle1: {
-    width: 150,
-    height: 150,
-    top: 60,
-    right: -40,
-  },
-  decorCircle2: {
-    width: 80,
-    height: 80,
-    top: 180,
-    left: -20,
-  },
-  decorCircle3: {
-    width: 60,
-    height: 60,
-    top: 300,
-    right: 30,
-  },
-
-  // Header
-  header: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-    paddingHorizontal: Spacing.lg,
-  },
-  backButton: {
-    width: 48,
-    height: 48,
-    borderRadius: BorderRadius.full,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...Shadows.md,
-  },
-  backButtonText: {
-    fontSize: 24,
-    color: Colors.text.primary,
-  },
-
-  // Scroll
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: Spacing.lg,
-    paddingTop: 100,
-  },
-
-  // Image
-  imageContainer: {
-    alignItems: 'center',
-    marginBottom: Spacing.xxl,
+  hero: {
+    justifyContent: 'flex-end',
+    overflow: 'hidden',
   },
   heroImage: {
-    width: IMAGE_SIZE,
-    height: IMAGE_SIZE,
-    borderRadius: IMAGE_SIZE / 2,
-    borderWidth: 5,
-    borderColor: 'rgba(255, 255, 255, 0.9)',
+    ...StyleSheet.absoluteFillObject,
+    width: '100%',
+    height: '100%',
   },
-  imageGlow: {
+  heroContent: {},
+  // Only wash the lower half so the photograph reads at the top.
+  heroScrim: {
+    top: '42%',
+  },
+
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  swatch: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  overline: { opacity: 0.9 },
+
+  body: {
+    paddingTop: 28,
+  },
+  lead: {
+    marginBottom: 18,
+  },
+  paragraph: {
+    marginBottom: 16,
+  },
+
+  configCard: {
+    marginTop: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  configTitle: {
+    marginTop: 6,
+    marginBottom: 4,
+  },
+  configCode: {
+    marginTop: 14,
+    padding: 12,
+    fontFamily: 'Menlo',
+    lineHeight: 18,
+  },
+
+  backLayer: {
     position: 'absolute',
-    width: IMAGE_SIZE + 30,
-    height: IMAGE_SIZE + 30,
-    borderRadius: (IMAGE_SIZE + 30) / 2,
-    opacity: 0.3,
-    zIndex: -1,
   },
-
-  // Name
-  nameContainer: {
+  backButton: {
+    width: 44,
+    height: 44,
     alignItems: 'center',
-    marginBottom: Spacing.xl,
+    justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
   },
-  heroName: {
-    fontSize: Typography.fontSize.display,
-    fontWeight: '800',
-    color: Colors.text.primary,
-    textAlign: 'center',
-    letterSpacing: -1,
-  },
-  classBadge: {
-    marginTop: Spacing.sm,
-    backgroundColor: Colors.lavender,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.full,
-  },
-  classText: {
-    fontSize: Typography.fontSize.sm,
-    fontWeight: '600',
-    color: Colors.text.primary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  transitionBadge: {
-    marginTop: Spacing.sm,
-    backgroundColor: 'rgba(255, 255, 255, 0.75)',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.full,
-  },
-  transitionBadgeText: {
-    fontSize: Typography.fontSize.xs,
-    fontWeight: '600',
-    color: Colors.text.secondary,
-    letterSpacing: 0.5,
-  },
-
-  // Stats
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: Spacing.xxl,
-  },
-  statCard: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.background.card,
-    padding: Spacing.md,
-    marginHorizontal: Spacing.xs,
-    borderRadius: BorderRadius.lg,
-    ...Shadows.sm,
-  },
-  statIcon: {
-    fontSize: 24,
-    marginRight: Spacing.sm,
-  },
-  statValue: {
-    fontSize: Typography.fontSize.lg,
-    fontWeight: '700',
-    color: Colors.text.primary,
-  },
-  statLabel: {
-    fontSize: Typography.fontSize.xs,
-    color: Colors.text.secondary,
-    textTransform: 'uppercase',
-  },
-
-  // Quote
-  quoteContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: Colors.background.card,
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.xl,
-    marginBottom: Spacing.xxl,
-    ...Shadows.sm,
-  },
-  quoteIcon: {
-    fontSize: 28,
-    marginRight: Spacing.md,
-  },
-  quoteText: {
-    flex: 1,
-    fontSize: Typography.fontSize.lg,
-    color: Colors.text.primary,
-    fontStyle: 'italic',
-    lineHeight: Typography.fontSize.lg * Typography.lineHeight.relaxed,
-  },
-
-  // Description
-  descriptionContainer: {
-    marginBottom: Spacing.xxl,
-  },
-  sectionTitle: {
-    fontSize: Typography.fontSize.xl,
-    fontWeight: '700',
-    color: Colors.text.primary,
-    marginBottom: Spacing.md,
-  },
-  descriptionText: {
-    fontSize: Typography.fontSize.md,
-    color: Colors.text.secondary,
-    lineHeight: Typography.fontSize.md * Typography.lineHeight.relaxed,
-  },
-
-  // Actions
-  actionsContainer: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-  },
-  primaryButton: {
-    flex: 1,
-    backgroundColor: Colors.lavender,
-    paddingVertical: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    alignItems: 'center',
-    ...Shadows.sm,
-  },
-  primaryButtonText: {
-    fontSize: Typography.fontSize.md,
-    fontWeight: '600',
-    color: Colors.text.primary,
-  },
-  secondaryButton: {
-    flex: 1,
-    backgroundColor: Colors.background.card,
-    paddingVertical: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: Colors.lavender,
-  },
-  secondaryButtonText: {
-    fontSize: Typography.fontSize.md,
-    fontWeight: '600',
-    color: Colors.text.primary,
+  backGlyph: {
+    fontSize: 30,
+    lineHeight: 34,
+    marginTop: -4,
+    fontWeight: '400',
   },
 });
+
+export default DetailScreen;

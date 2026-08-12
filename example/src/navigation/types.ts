@@ -1,25 +1,23 @@
 /**
- * Navigation type definitions
+ * Navigation type definitions.
+ *
+ * Route params carry only the destination id — the screen looks the record up
+ * from `src/data/destinations.ts`. Keeping `require()`d image sources out of
+ * navigation state keeps the params serializable.
  */
 
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { Hero } from '../types';
-
-export type TransitionType = 'fade' | 'scale' | 'slide' | 'none';
 
 export type RootStackParamList = {
-  Home: undefined;
-  Detail: {
-    hero: Hero;
-    index: number;
-    transition?: TransitionType;
-  };
+  Gallery: undefined;
+  Detail: { id: string };
 };
 
-export type HomeScreenProps = NativeStackScreenProps<
+export type GalleryScreenProps = NativeStackScreenProps<
   RootStackParamList,
-  'Home'
+  'Gallery'
 >;
+
 export type DetailScreenProps = NativeStackScreenProps<
   RootStackParamList,
   'Detail'

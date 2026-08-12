@@ -1,60 +1,81 @@
 /**
- * 🚀 React Native Shared Transition - Example App
+ * react-native-shared-transition — example app
  *
- * A beautiful showcase demonstrating the power of
- * react-native-shared-transition library
+ * A photo gallery whose cards fly into a full-bleed detail screen. The active
+ * transition config is chosen on the gallery and handed to
+ * `<SharedTransitionHost config>`, which is the library's app-wide default.
  */
 
-import { StatusBar, Platform } from 'react-native';
+import { useEffect } from 'react';
+import { Platform, StatusBar, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
+import type { Theme as NavigationTheme } from '@react-navigation/native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { SharedTransitionHost } from 'react-native-shared-transition';
 
 import { RootNavigator } from './navigation/RootNavigator';
-import { Colors } from './theme';
+import { useTheme } from './theme';
+import { TransitionVariantProvider } from './transition/variants';
 
-// Android specific setup
-if (Platform.OS === 'android') {
-  StatusBar.setTranslucent(true);
-  StatusBar.setBackgroundColor('transparent');
+function useNavigationTheme(): NavigationTheme {
+  const theme = useTheme();
+  return {
+    dark: theme.scheme === 'dark',
+    colors: {
+      primary: theme.color.accent,
+      background: theme.color.canvas,
+      card: theme.color.surface,
+      text: theme.color.textPrimary,
+      border: theme.color.border,
+      notification: theme.color.accent,
+    },
+    fonts: {
+      regular: { fontFamily: 'System', fontWeight: '400' },
+      medium: { fontFamily: 'System', fontWeight: '500' },
+      bold: { fontFamily: 'System', fontWeight: '600' },
+      heavy: { fontFamily: 'System', fontWeight: '700' },
+    },
+  };
 }
 
 export default function App() {
+  const theme = useTheme();
+  const navigationTheme = useNavigationTheme();
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    // The overlay is positioned in window coordinates, so on Android the RN
+    // root must span the window too — otherwise every overlay is offset down
+    // by the status bar height.
+    StatusBar.setTranslucent(true);
+    StatusBar.setBackgroundColor('transparent');
+  }, []);
+
   return (
     <GestureHandlerRootView
-      style={{ flex: 1, backgroundColor: Colors.background.primary }}
+      style={[styles.root, { backgroundColor: theme.color.canvas }]}
     >
       <SafeAreaProvider>
         <StatusBar
-          barStyle="dark-content"
+          barStyle={theme.scheme === 'dark' ? 'light-content' : 'dark-content'}
           backgroundColor="transparent"
           translucent
         />
-        <SharedTransitionHost>
-          <NavigationContainer
-            theme={{
-              dark: false,
-              colors: {
-                primary: Colors.lavender,
-                background: Colors.background.primary,
-                card: Colors.background.card,
-                text: Colors.text.primary,
-                border: Colors.butter,
-                notification: Colors.coral,
-              },
-              fonts: {
-                regular: { fontFamily: 'System', fontWeight: '400' },
-                medium: { fontFamily: 'System', fontWeight: '500' },
-                bold: { fontFamily: 'System', fontWeight: '700' },
-                heavy: { fontFamily: 'System', fontWeight: '800' },
-              },
-            }}
-          >
-            <RootNavigator />
-          </NavigationContainer>
-        </SharedTransitionHost>
+        <TransitionVariantProvider>
+          {(config) => (
+            <SharedTransitionHost config={config}>
+              <NavigationContainer theme={navigationTheme}>
+                <RootNavigator />
+              </NavigationContainer>
+            </SharedTransitionHost>
+          )}
+        </TransitionVariantProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }
+
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+});
