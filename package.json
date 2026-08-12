@@ -1,6 +1,6 @@
 {
   "name": "react-native-shared-transition",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Automatic shared element transitions for React Native \u2014 New Architecture, Nitro Modules, Reanimated",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
@@ -12,16 +12,15 @@
     },
     "./package.json": "./package.json"
   },
+  "sideEffects": false,
   "files": [
     "src",
     "lib",
     "android",
     "ios",
-    "cpp",
     "nitrogen",
     "nitro.json",
     "*.podspec",
-    "react-native.config.js",
     "!ios/build",
     "!android/build",
     "!android/gradle",
@@ -68,6 +67,9 @@
     "url": "https://github.com/giaBaoJS/react-native-shared-transition/issues"
   },
   "homepage": "https://github.com/giaBaoJS/react-native-shared-transition#readme",
+  "engines": {
+    "node": ">=20"
+  },
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"
   },
