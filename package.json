@@ -1,7 +1,7 @@
 {
   "name": "react-native-shared-transition",
-  "version": "0.1.0",
-  "description": "Modern shared element transitions for React Native, built with the New Architecture and Reanimated",
+  "version": "0.2.0",
+  "description": "Automatic shared element transitions for React Native \u2014 New Architecture, Nitro Modules, Reanimated",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
   "exports": {
@@ -46,7 +46,17 @@
   "keywords": [
     "react-native",
     "ios",
-    "android"
+    "android",
+    "shared-element",
+    "shared-element-transition",
+    "transition",
+    "animation",
+    "nitro",
+    "nitro-modules",
+    "reanimated",
+    "fabric",
+    "new-architecture",
+    "react-navigation"
   ],
   "repository": {
     "type": "git",

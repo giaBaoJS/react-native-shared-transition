@@ -164,7 +164,7 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
       >
         {/* Hero Image */}
         <View style={styles.imageContainer}>
-          <SharedElement id={`hero.${hero.id}.photo`}>
+          <SharedElement id={`hero.${hero.id}.photo`} config={hero.transition}>
             <Image source={hero.photo} style={styles.heroImage} />
           </SharedElement>
 
@@ -194,13 +194,21 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
               </Text>
             </View>
           )}
+
+          {hero.transitionLabel && (
+            <View style={styles.transitionBadge}>
+              <Text style={styles.transitionBadgeText}>
+                {hero.transitionLabel}
+              </Text>
+            </View>
+          )}
         </Animated.View>
 
         {/* Stats */}
         <View style={styles.statsContainer}>
-          <StatCard icon="⚡" label="Power" value="∞" delay={250} />
-          <StatCard icon="🛡️" label="Defense" value="MAX" delay={350} />
-          <StatCard icon="💨" label="Speed" value="S+" delay={450} />
+          <StatCard icon="◆" label="Power" value="∞" delay={250} />
+          <StatCard icon="●" label="Defense" value="MAX" delay={350} />
+          <StatCard icon="▲" label="Speed" value="S+" delay={450} />
         </View>
 
         {/* Quote */}
@@ -208,7 +216,7 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
           style={styles.quoteContainer}
           entering={FadeInDown.delay(400).springify()}
         >
-          <Text style={styles.quoteIcon}>💬</Text>
+          <Text style={styles.quoteIcon}>“</Text>
           <Text style={styles.quoteText}>"{hero.quote}"</Text>
         </Animated.View>
 
@@ -368,6 +376,19 @@ const styles = StyleSheet.create({
     color: Colors.text.primary,
     textTransform: 'uppercase',
     letterSpacing: 1,
+  },
+  transitionBadge: {
+    marginTop: Spacing.sm,
+    backgroundColor: 'rgba(255, 255, 255, 0.75)',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
+  },
+  transitionBadgeText: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: '600',
+    color: Colors.text.secondary,
+    letterSpacing: 0.5,
   },
 
   // Stats

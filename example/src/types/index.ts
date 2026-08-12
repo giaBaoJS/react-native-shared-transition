@@ -2,6 +2,8 @@
  * Type definitions for the example app
  */
 
+import type { SharedTransitionConfigInput } from 'react-native-shared-transition';
+
 export type Hero = {
   id: string;
   name: string;
@@ -10,21 +12,8 @@ export type Hero = {
   description?: string;
   rank?: number;
   class?: 'S' | 'A' | 'B' | 'C';
-};
-
-export type SharedElementConfig = {
-  id: string;
-  animation?: 'move' | 'fade' | 'fade-in' | 'fade-out';
-  resize?: 'auto' | 'stretch' | 'clip' | 'none';
-  align?:
-    | 'auto'
-    | 'left-top'
-    | 'left-center'
-    | 'left-bottom'
-    | 'right-top'
-    | 'right-center'
-    | 'right-bottom'
-    | 'center-top'
-    | 'center-center'
-    | 'center-bottom';
+  /** Per-hero transition variant, to showcase the config options. */
+  transition?: SharedTransitionConfigInput;
+  /** Human-readable label of the variant, shown on the detail screen. */
+  transitionLabel?: string;
 };

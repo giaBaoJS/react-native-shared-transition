@@ -8,6 +8,7 @@ import type { Hero } from '../types';
 export const Heroes: Hero[] = [
   {
     id: 'saitama',
+    transitionLabel: 'spring (default)',
     name: 'Saitama',
     photo: require('./onepunch.jpg'),
     quote: 'Just an average guy who serves as an average hero',
@@ -18,6 +19,8 @@ export const Heroes: Hero[] = [
   },
   {
     id: 'garou',
+    transition: { animation: 'timing', duration: 450, easing: 'ease-in-out' },
+    transitionLabel: 'timing · 450ms',
     name: 'Garou',
     photo: require('./garou.png'),
     quote: "The popular will win, the hated will lose, it's such a tragedy.",
@@ -28,6 +31,8 @@ export const Heroes: Hero[] = [
   },
   {
     id: 'genos',
+    transition: { spring: { damping: 12, stiffness: 160 } },
+    transitionLabel: 'bouncy spring',
     name: 'Genos',
     photo: require('./genos.jpg'),
     quote: 'Demon Cyborg',
@@ -38,6 +43,8 @@ export const Heroes: Hero[] = [
   },
   {
     id: 'silverfang',
+    transition: { animation: 'timing', duration: 600, easing: 'ease-out' },
+    transitionLabel: 'timing · 600ms ease-out',
     name: 'Silverfang',
     photo: require('./silverfang.png'),
     quote:
@@ -49,6 +56,8 @@ export const Heroes: Hero[] = [
   },
   {
     id: 'tatsumaki',
+    transition: { morphBorderRadius: false },
+    transitionLabel: 'no radius morph',
     name: 'Tatsumaki',
     photo: require('./tatsumaki.png'),
     quote: 'To survive in this world... All you can do is get stronger',
@@ -59,6 +68,10 @@ export const Heroes: Hero[] = [
   },
   {
     id: 'king',
+    transition: {
+      spring: { damping: 30, stiffness: 320, overshootClamping: true },
+    },
+    transitionLabel: 'stiff spring · clamped',
     name: 'King',
     photo: require('./king.jpg'),
     quote: 'The Strongest Man on Earth',
@@ -69,6 +82,7 @@ export const Heroes: Hero[] = [
   },
   {
     id: 'metalknight',
+    transitionLabel: 'spring (default)',
     name: 'Metal Knight',
     photo: require('./metalknight.jpg'),
     quote: 'Dr. Bofoi',
@@ -79,6 +93,8 @@ export const Heroes: Hero[] = [
   },
   {
     id: 'atomicsamurai',
+    transition: { crossFade: true },
+    transitionLabel: 'cross-fade content',
     name: 'Atomic Samurai',
     photo: require('./atomicsamurai.jpg'),
     quote: 'Master Swordsman',

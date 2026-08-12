@@ -73,51 +73,54 @@ function HeroCard({ hero, index, onPress }: HeroCardProps) {
         onPressOut={handlePressOut}
         style={[styles.cardContainer, animatedStyle]}
       >
-      {/* Gradient Background */}
-      <View
-        style={[styles.cardGradient, { backgroundColor: gradientColors[0] }]}
-      >
+        {/* Gradient Background */}
         <View
-          style={[
-            styles.cardGradientOverlay,
-            { backgroundColor: gradientColors[1], opacity: 0.6 },
-          ]}
-        />
+          style={[styles.cardGradient, { backgroundColor: gradientColors[0] }]}
+        >
+          <View
+            style={[
+              styles.cardGradientOverlay,
+              { backgroundColor: gradientColors[1], opacity: 0.6 },
+            ]}
+          />
 
-        {/* Content */}
-        <View style={styles.cardContent}>
-          {/* Hero Image */}
-          <SharedElement id={`hero.${hero.id}.photo`}>
-            <Image source={hero.photo} style={styles.heroImage} />
-          </SharedElement>
-
-          {/* Hero Info */}
-          <View style={styles.heroInfo}>
+          {/* Content */}
+          <View style={styles.cardContent}>
+            {/* Hero Image */}
             <SharedElement
-              id={`hero.${hero.id}.name`}
-              config={{ contentScale: 'transform', crossFade: true }}
+              id={`hero.${hero.id}.photo`}
+              config={hero.transition}
             >
-              <Text style={styles.heroName}>{hero.name}</Text>
+              <Image source={hero.photo} style={styles.heroImage} />
             </SharedElement>
 
-            {hero.class && hero.rank !== undefined && (
-              <View style={styles.rankBadge}>
-                <Text style={styles.rankText}>
-                  {hero.class}-Class {hero.rank > 0 ? `#${hero.rank}` : ''}
-                </Text>
-              </View>
-            )}
+            {/* Hero Info */}
+            <View style={styles.heroInfo}>
+              <SharedElement
+                id={`hero.${hero.id}.name`}
+                config={{ contentScale: 'transform', crossFade: true }}
+              >
+                <Text style={styles.heroName}>{hero.name}</Text>
+              </SharedElement>
 
-            <Text style={styles.heroQuote} numberOfLines={2}>
-              "{hero.quote}"
-            </Text>
+              {hero.class && hero.rank !== undefined && (
+                <View style={styles.rankBadge}>
+                  <Text style={styles.rankText}>
+                    {hero.class}-Class {hero.rank > 0 ? `#${hero.rank}` : ''}
+                  </Text>
+                </View>
+              )}
+
+              <Text style={styles.heroQuote} numberOfLines={2}>
+                "{hero.quote}"
+              </Text>
+            </View>
           </View>
-        </View>
 
-        {/* Decorative Elements */}
-        <View style={[styles.decorCircle, styles.decorCircle1]} />
-        <View style={[styles.decorCircle, styles.decorCircle2]} />
-      </View>
+          {/* Decorative Elements */}
+          <View style={[styles.decorCircle, styles.decorCircle1]} />
+          <View style={[styles.decorCircle, styles.decorCircle2]} />
+        </View>
       </AnimatedPressable>
     </Animated.View>
   );
@@ -133,7 +136,6 @@ function Header() {
       style={styles.header}
       entering={FadeInUp.delay(100).springify()}
     >
-      <Text style={styles.headerEmoji}>⚡</Text>
       <View>
         <Text style={styles.headerTitle}>Hero Gallery</Text>
         <Text style={styles.headerSubtitle}>
@@ -210,10 +212,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: Spacing.xxl,
     paddingHorizontal: Spacing.sm,
-  },
-  headerEmoji: {
-    fontSize: 48,
-    marginRight: Spacing.lg,
   },
   headerTitle: {
     fontSize: Typography.fontSize.xxxl,
