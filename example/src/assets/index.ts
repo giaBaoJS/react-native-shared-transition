@@ -40,7 +40,8 @@ export const Heroes: Hero[] = [
     id: 'silverfang',
     name: 'Silverfang',
     photo: require('./silverfang.png'),
-    quote: 'You do not need to know who the victor is within a battle using martial arts',
+    quote:
+      'You do not need to know who the victor is within a battle using martial arts',
     description:
       'Bang, also known by his hero alias Silverfang, is a professional hero, a martial arts master, and the creator of Water Stream Rock Smashing Fist. He is the 3rd ranked S-Class hero.',
     rank: 3,

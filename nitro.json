@@ -11,10 +11,6 @@
     "SharedTransitionModule": {
       "swift": "HybridSharedTransitionModule",
       "kotlin": "HybridSharedTransitionModule"
-    },
-    "TransitionOverlay": {
-      "swift": "HybridTransitionOverlay",
-      "kotlin": "HybridTransitionOverlay"
     }
   },
   "ignorePaths": ["node_modules"]

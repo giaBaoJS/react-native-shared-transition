@@ -3,7 +3,7 @@
  * Showcases SharedElement transitions with stunning UI
  */
 
-import React, { useCallback, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -50,7 +50,8 @@ interface HeroCardProps {
 
 function HeroCard({ hero, index, onPress }: HeroCardProps) {
   const scale = useSharedValue(1);
-  const gradientColors = CardGradients[index % CardGradients.length];
+  const gradientColors =
+    CardGradients[index % CardGradients.length] ?? CardGradients[0];
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -92,7 +93,10 @@ function HeroCard({ hero, index, onPress }: HeroCardProps) {
 
           {/* Hero Info */}
           <View style={styles.heroInfo}>
-            <SharedElement id={`hero.${hero.id}.name`}>
+            <SharedElement
+              id={`hero.${hero.id}.name`}
+              config={{ contentScale: 'transform', crossFade: true }}
+            >
               <Text style={styles.heroName}>{hero.name}</Text>
             </SharedElement>
 

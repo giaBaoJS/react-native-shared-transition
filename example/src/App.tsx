@@ -5,11 +5,11 @@
  * react-native-shared-transition library
  */
 
-import React from 'react';
 import { StatusBar, Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SharedTransitionHost } from 'react-native-shared-transition';
 
 import { RootNavigator } from './navigation/RootNavigator';
 import { Colors } from './theme';
@@ -31,27 +31,29 @@ export default function App() {
           backgroundColor="transparent"
           translucent
         />
-        <NavigationContainer
-          theme={{
-            dark: false,
-            colors: {
-              primary: Colors.lavender,
-              background: Colors.background.primary,
-              card: Colors.background.card,
-              text: Colors.text.primary,
-              border: Colors.butter,
-              notification: Colors.coral,
-            },
-            fonts: {
-              regular: { fontFamily: 'System', fontWeight: '400' },
-              medium: { fontFamily: 'System', fontWeight: '500' },
-              bold: { fontFamily: 'System', fontWeight: '700' },
-              heavy: { fontFamily: 'System', fontWeight: '800' },
-            },
-          }}
-        >
-          <RootNavigator />
-        </NavigationContainer>
+        <SharedTransitionHost>
+          <NavigationContainer
+            theme={{
+              dark: false,
+              colors: {
+                primary: Colors.lavender,
+                background: Colors.background.primary,
+                card: Colors.background.card,
+                text: Colors.text.primary,
+                border: Colors.butter,
+                notification: Colors.coral,
+              },
+              fonts: {
+                regular: { fontFamily: 'System', fontWeight: '400' },
+                medium: { fontFamily: 'System', fontWeight: '500' },
+                bold: { fontFamily: 'System', fontWeight: '700' },
+                heavy: { fontFamily: 'System', fontWeight: '800' },
+              },
+            }}
+          >
+            <RootNavigator />
+          </NavigationContainer>
+        </SharedTransitionHost>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

@@ -1,193 +1,175 @@
 /**
- * Type definitions for react-native-shared-transition
- *
- * API design compatible with react-native-shared-element
+ * Public type definitions for react-native-shared-transition.
  */
 
-import type { ViewStyle, StyleProp } from 'react-native';
+import type { ReactElement, ReactNode } from 'react';
+import type { StyleProp, ViewStyle } from 'react-native';
 
-// Re-export native types
 export type {
-  SharedElementLayout,
-  SharedElementAnimation,
-  SharedElementResize,
-  SharedElementAlign,
-  SharedElementContentType,
+  MeasuredFrame,
+  SnapshotResult,
 } from './specs/SharedTransitionModule.nitro';
 
 /**
- * Unique identifier for shared elements
+ * Unique identifier that matches shared elements across screens.
  */
 export type SharedElementId = string;
 
 /**
- * Node reference returned by SharedElement
- * Used internally for tracking
+ * Animation driver for a transition.
  */
-export interface SharedElementNode {
-  /** Unique nativeID for this instance */
-  nativeId: string;
-  /** User-provided transition ID */
-  transitionId: SharedElementId;
-  /** Ancestor nativeID (for relative positioning) */
-  ancestorId?: string;
+export type SharedTransitionAnimation = 'spring' | 'timing';
+
+/**
+ * Named easing curves for `timing` transitions.
+ */
+export type SharedTransitionEasing =
+  | 'linear'
+  | 'ease'
+  | 'ease-in'
+  | 'ease-out'
+  | 'ease-in-out';
+
+/**
+ * How the overlay content follows the animated frame.
+ *
+ * - `'resize'`  — the content is laid out at the animated size every frame.
+ *                 Best for images (resizeMode is respected while morphing).
+ * - `'transform'` — the content is laid out once at the destination size and
+ *                 scaled with a transform. Best for text and complex views
+ *                 whose internal layout should not reflow mid-flight.
+ */
+export type SharedTransitionContentScale = 'resize' | 'transform';
+
+/**
+ * Spring parameters (react-native-reanimated `withSpring`).
+ */
+export interface SharedTransitionSpringConfig {
+  damping?: number;
+  stiffness?: number;
+  mass?: number;
+  overshootClamping?: boolean;
 }
 
 /**
- * Props for SharedElement component
+ * Fully-resolved transition configuration.
+ */
+export interface SharedTransitionConfig {
+  /** Animation driver @default 'spring' */
+  animation: SharedTransitionAnimation;
+  /** Duration in ms (timing only) @default 320 */
+  duration: number;
+  /** Easing curve (timing only) @default 'ease-in-out' */
+  easing: SharedTransitionEasing;
+  /** Spring parameters (spring only) */
+  spring: Required<SharedTransitionSpringConfig>;
+  /**
+   * Cross-fade the source content into the target content while morphing.
+   * Enable when the two elements render different content (e.g. text with
+   * different font sizes). @default false
+   */
+  crossFade: boolean;
+  /**
+   * Animate borderRadius between the source and target styles.
+   * @default true
+   */
+  morphBorderRadius: boolean;
+  /** How overlay content follows the animated frame. @default 'resize' */
+  contentScale: SharedTransitionContentScale;
+}
+
+/**
+ * Partial configuration accepted everywhere a config can be passed.
+ */
+export type SharedTransitionConfigInput = Partial<
+  Omit<SharedTransitionConfig, 'spring'>
+> & {
+  spring?: SharedTransitionSpringConfig;
+};
+
+export const DEFAULT_TRANSITION_CONFIG: SharedTransitionConfig = {
+  animation: 'spring',
+  duration: 320,
+  easing: 'ease-in-out',
+  spring: {
+    damping: 26,
+    stiffness: 290,
+    mass: 1,
+    overshootClamping: false,
+  },
+  crossFade: false,
+  morphBorderRadius: true,
+  contentScale: 'resize',
+};
+
+/**
+ * Merge any number of partial configs (later wins) on top of the defaults.
+ */
+export function resolveTransitionConfig(
+  ...configs: Array<SharedTransitionConfigInput | undefined>
+): SharedTransitionConfig {
+  const result: SharedTransitionConfig = {
+    ...DEFAULT_TRANSITION_CONFIG,
+    spring: { ...DEFAULT_TRANSITION_CONFIG.spring },
+  };
+  for (const config of configs) {
+    if (!config) continue;
+    const { spring, ...rest } = config;
+    for (const [key, value] of Object.entries(rest)) {
+      if (value !== undefined) {
+        (result as unknown as Record<string, unknown>)[key] = value;
+      }
+    }
+    if (spring) {
+      result.spring = { ...result.spring, ...spring };
+    }
+  }
+  return result;
+}
+
+/**
+ * Props for the {@link SharedElement} component.
  */
 export interface SharedElementProps {
-  /**
-   * Unique ID to match elements across screens
-   * Elements with the same ID will transition together
-   */
+  /** Matches elements across screens — same id on both sides transitions. */
   id: SharedElementId;
-
-  /**
-   * Style applied to the wrapper view
-   */
+  /** Style for the wrapper view. */
   style?: StyleProp<ViewStyle>;
-
-  /**
-   * Children to wrap (should be a single element)
-   */
-  children: React.ReactNode;
-
-  /**
-   * Callback when the node is ready
-   * @param node - The node reference or null when unmounting
-   */
-  onNode?: (node: SharedElementNode | null) => void;
+  /** The element to transition (a single child). */
+  children: ReactNode;
+  /** Per-element transition config, merged over the host default. */
+  config?: SharedTransitionConfigInput;
 }
 
-  /**
- * Configuration for a single shared element in a transition
+/**
+ * State of a shared element transition exposed by the hook.
  */
-export interface SharedElementConfig {
-  /** The ID of the shared element */
+export interface SharedTransitionSnapshot {
+  /** True while any transition (or the one for `id`) is in flight. */
+  isTransitioning: boolean;
+  /** Element ids currently in flight. */
+  activeIds: SharedElementId[];
+}
+
+/**
+ * Internal registry record for a mounted SharedElement.
+ */
+export interface SharedElementRecord {
   id: SharedElementId;
-
-  /** Optional different ID on the other screen (rare) */
-  otherId?: SharedElementId;
-
-  /** Animation type */
-  animation?: import('./specs/SharedTransitionModule.nitro').SharedElementAnimation;
-
-  /** Resize behavior */
-  resize?: import('./specs/SharedTransitionModule.nitro').SharedElementResize;
-
-  /** Alignment behavior */
-  align?: import('./specs/SharedTransitionModule.nitro').SharedElementAlign;
-
-  /** Enable debug mode for this element */
-  debug?: boolean;
-}
-
-/**
- * Simplified config - just the ID string
- */
-export type SharedElementsConfigInput =
-  | SharedElementConfig
-  | SharedElementId;
-
-/**
- * Full config array for transitions
- */
-export type SharedElementsConfig = SharedElementsConfigInput[];
-
-/**
- * Normalized config (always has all fields)
- */
-export interface SharedElementStrictConfig {
-  id: SharedElementId;
-  otherId: SharedElementId;
-  animation: import('./specs/SharedTransitionModule.nitro').SharedElementAnimation;
-  resize: import('./specs/SharedTransitionModule.nitro').SharedElementResize;
-  align: import('./specs/SharedTransitionModule.nitro').SharedElementAlign;
-  debug: boolean;
-}
-
-/**
- * Transition state
- */
-export type TransitionState =
-  | 'idle'
-  | 'preparing'
-  | 'running'
-  | 'completed'
-  | 'error';
-
-/**
- * Configuration for useSharedTransition hook
- */
-export interface UseSharedTransitionConfig {
-  /** Animation duration in milliseconds */
-  duration?: number;
-
-  /** Enable debug mode */
-  debug?: boolean;
-
-  /** Custom easing function name (for Reanimated) */
-  easing?: string;
-}
-
-/**
- * Result from useSharedTransition hook
- */
-export interface UseSharedTransitionResult {
-  /** Current transition state */
-  state: TransitionState;
-
-  /** Progress value (0-1) */
-  progress: number;
-
-  /** Start the transition */
-  start: () => Promise<void>;
-
-  /** Reset/cancel the transition */
-  reset: () => void;
-
-  /** Error if any */
-  error: Error | null;
-}
-
-// =============================================================================
-// Helper functions
-// =============================================================================
-
-/**
- * Normalize a shared element config to strict format
- */
-export function normalizeSharedElementConfig(
-  config: SharedElementsConfigInput
-): SharedElementStrictConfig {
-  if (typeof config === 'string') {
-    return {
-      id: config,
-      otherId: config,
-      animation: 'move',
-      resize: 'auto',
-      align: 'auto',
-      debug: false,
-    };
-}
-
-  return {
-    id: config.id,
-    otherId: config.otherId ?? config.id,
-    animation: config.animation ?? 'move',
-    resize: config.resize ?? 'auto',
-    align: config.align ?? 'auto',
-    debug: config.debug ?? false,
-  };
-}
-
-/**
- * Normalize array of configs
- */
-export function normalizeSharedElementsConfig(
-  configs: SharedElementsConfig | undefined
-): SharedElementStrictConfig[] | undefined {
-  if (!configs || configs.length === 0) return undefined;
-  return configs.map(normalizeSharedElementConfig);
+  nativeId: string;
+  /** Clone template — the SharedElement's child. */
+  element: ReactElement | null;
+  /** borderRadius extracted from the child's style. */
+  borderRadius: number;
+  /** Static border styles extracted from the child (drawn on the overlay). */
+  borderWidth: number;
+  borderColor: string | undefined;
+  config?: SharedTransitionConfigInput;
+  /** Registration order (monotonic). */
+  sequence: number;
+  layoutReady: boolean;
+  /** Last frame measured during a transition (window coords). */
+  lastFrame:
+    | import('./specs/SharedTransitionModule.nitro').MeasuredFrame
+    | null;
 }

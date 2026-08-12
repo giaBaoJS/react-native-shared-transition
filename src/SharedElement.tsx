@@ -1,120 +1,109 @@
 /**
- * SharedElement Component
+ * SharedElement
  *
- * Wraps a child component and registers it for shared element transitions.
- * Compatible with react-native-shared-element API.
+ * Wraps a single child and registers it for shared element transitions.
+ * When another SharedElement with the same `id` mounts on a different screen,
+ * the `<SharedTransitionHost>` animates between the two automatically.
  *
- * Usage:
  * ```tsx
- * <SharedElement id="hero-image">
- *   <Image source={hero.photo} />
+ * <SharedElement id={`hero.${hero.id}.photo`}>
+ *   <Image source={hero.photo} style={styles.photo} />
  * </SharedElement>
  * ```
  */
 
-import { useEffect, useMemo } from 'react';
-import { View, StyleSheet } from 'react-native';
-import type { ViewStyle, StyleProp } from 'react-native';
+import { Children, isValidElement, useEffect, useMemo, useRef } from 'react';
+import { StyleSheet, View } from 'react-native';
+import type { ReactElement } from 'react';
 
-import type {
-  SharedElementId,
-  SharedElementNode,
-  SharedElementProps,
-} from './types';
 import { SharedElementRegistry } from './SharedElementRegistry';
+import type { SharedElementProps } from './types';
 
-// Counter for generating unique native IDs
 let nativeIdCounter = 0;
 
-function generateNativeId(transitionId: SharedElementId): string {
+function generateNativeId(id: string): string {
   nativeIdCounter += 1;
-  return `shared-element-${transitionId}-${nativeIdCounter}`;
+  return `shared-element:${id}:${nativeIdCounter}`;
 }
 
-/**
- * SharedElement Component
- * Wraps children and registers for shared element transitions.
- */
+interface ExtractedStyle {
+  borderRadius: number;
+  borderWidth: number;
+  borderColor: string | undefined;
+}
+
+function extractStyle(element: ReactElement | null): ExtractedStyle {
+  const style = element
+    ? StyleSheet.flatten(
+        (element.props as { style?: unknown }).style as never
+      ) ?? {}
+    : {};
+  const borderRadius = (style as { borderRadius?: unknown }).borderRadius;
+  const borderWidth = (style as { borderWidth?: unknown }).borderWidth;
+  const borderColor = (style as { borderColor?: unknown }).borderColor;
+  return {
+    borderRadius: typeof borderRadius === 'number' ? borderRadius : 0,
+    borderWidth: typeof borderWidth === 'number' ? borderWidth : 0,
+    borderColor: typeof borderColor === 'string' ? borderColor : undefined,
+  };
+}
+
 export function SharedElement({
   id,
   style,
   children,
-  onNode,
+  config,
 }: SharedElementProps) {
   const nativeId = useMemo(() => generateNativeId(id), [id]);
 
-  const node = useMemo<SharedElementNode>(
-    () => ({ nativeId, transitionId: id }),
-    [nativeId, id]
-  );
+  const onlyChild = Children.only(children);
+  const element = isValidElement(onlyChild) ? onlyChild : null;
 
-  // Register/unregister with global registry
+  // Layout can fire before the registration effect — remember it.
+  const layoutReadyRef = useRef(false);
+
+  // Keep the latest clone template/config available to the registration
+  // effect without re-registering on every render.
+  const latest = useRef({ element, config });
+  latest.current = { element, config };
+
   useEffect(() => {
-    SharedElementRegistry.registerElement(id, node);
-    onNode?.(node);
-
+    const { element: currentElement, config: currentConfig } = latest.current;
+    SharedElementRegistry.register({
+      id,
+      nativeId,
+      element: currentElement,
+      config: currentConfig,
+      layoutReady: layoutReadyRef.current,
+      ...extractStyle(currentElement),
+    });
     return () => {
-      SharedElementRegistry.unregisterElement(id, node);
-      onNode?.(null);
+      SharedElementRegistry.unregister(nativeId);
     };
-  }, [id, node, onNode]);
+  }, [id, nativeId]);
 
-  const containerStyle = useMemo<StyleProp<ViewStyle>>(
-    () => [styles.container, style],
-    [style]
-  );
+  // Refresh mutable fields (clone template, config) on re-render.
+  useEffect(() => {
+    SharedElementRegistry.update(nativeId, {
+      element,
+      config,
+      ...extractStyle(element),
+    });
+  });
 
   return (
     <View
-      style={containerStyle}
+      style={style}
       nativeID={nativeId}
-      accessibilityLabel={nativeId} // For Android view finding in Fabric
       collapsable={false}
+      onLayout={() => {
+        layoutReadyRef.current = true;
+        SharedElementRegistry.markLayoutReady(nativeId);
+      }}
     >
       {children}
     </View>
   );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    // Ensure the view doesn't collapse
-  },
-});
-
-// =============================================================================
-// Utility function - matches react-native-shared-element API
-// =============================================================================
-
-/**
- * Get a node reference from a ref
- * Utility for manual node handling
- *
- * @param ref - Ref to a View component with nativeID
- * @returns SharedElementNode or null
- */
-export function nodeFromRef(ref: View | null): SharedElementNode | null {
-  if (!ref) return null;
-
-  // Access nativeID from the view's props
-  // This works because we set collapsable={false}
-  const props = (ref as any).props;
-  const nativeId = props?.nativeID;
-
-  if (!nativeId || typeof nativeId !== 'string') {
-    return null;
-  }
-
-  // Extract transition ID from nativeId pattern: "shared-element-{id}-{counter}"
-  const match = nativeId.match(/^shared-element-(.+)-\d+$/);
-  if (!match || !match[1]) {
-    return null;
-  }
-
-  return {
-    nativeId,
-    transitionId: match[1],
-  };
 }
 
 export default SharedElement;

@@ -1,225 +1,161 @@
 /**
  * SharedElementRegistry
  *
- * Global registry for tracking shared elements across screens.
- * Handles element registration, transition detection, and cleanup.
- *
- * Compatible with react-native-shared-element patterns.
+ * Global registry tracking every mounted `<SharedElement>`. The transition
+ * coordinator subscribes to registration events to detect pairs (same id on
+ * two screens) and to run return transitions when an element unmounts.
  */
 
-import type { SharedElementId, SharedElementNode } from './types';
+import type { MeasuredFrame } from './specs/SharedTransitionModule.nitro';
+import type { SharedElementId, SharedElementRecord } from './types';
 
-/**
- * Callback for when elements change
- */
-export type RegistryChangeCallback = (
-  elementId: SharedElementId,
-  nodes: SharedElementNode[]
-) => void;
+export type RegistryEvent =
+  | { type: 'registered'; record: SharedElementRecord }
+  | { type: 'layout'; record: SharedElementRecord }
+  | {
+      type: 'unregistered';
+      record: SharedElementRecord;
+      /** Newest remaining record with the same id, if any. */
+      remaining: SharedElementRecord | null;
+    };
 
-/**
- * Transition pair - two elements with the same ID
- */
-export interface TransitionPair {
-  /** The start element (usually from the source screen) */
-  start: SharedElementNode;
-  /** The end element (usually from the target screen) */
-  end: SharedElementNode;
-}
+export type RegistryListener = (event: RegistryEvent) => void;
 
-/**
- * Internal storage for registered elements
- */
-interface RegisteredElement {
-  node: SharedElementNode;
-  timestamp: number;
-}
+let sequenceCounter = 0;
 
-/**
- * SharedElementRegistry class
- *
- * Singleton registry that tracks all SharedElement components.
- */
 class SharedElementRegistryImpl {
-  /**
-   * Map of element ID to registered nodes
-   * Multiple nodes can exist with the same ID (during transitions)
-   */
-  private elements: Map<SharedElementId, RegisteredElement[]> = new Map();
+  /** All records keyed by nativeId. */
+  private records = new Map<string, SharedElementRecord>();
+  /** Records grouped by element id, in registration order. */
+  private byId = new Map<SharedElementId, SharedElementRecord[]>();
+  private listeners = new Set<RegistryListener>();
 
   /**
-   * Subscribers for element changes
+   * Register a mounted SharedElement. Returns the stored record.
    */
-  private subscribers: Set<RegistryChangeCallback> = new Set();
-
-  /**
-   * Register a new shared element
-   */
-  registerElement(id: SharedElementId, node: SharedElementNode): void {
-    const existing = this.elements.get(id) || [];
-
-    // Add new element with timestamp
-    existing.push({
-      node,
-      timestamp: Date.now(),
-    });
-
-    this.elements.set(id, existing);
-
-    // Notify subscribers
-    this.notifySubscribers(id);
+  register(
+    record: Omit<SharedElementRecord, 'sequence' | 'lastFrame'>
+  ): SharedElementRecord {
+    const stored: SharedElementRecord = {
+      ...record,
+      sequence: ++sequenceCounter,
+      lastFrame: null,
+    };
+    this.records.set(stored.nativeId, stored);
+    const group = this.byId.get(stored.id) ?? [];
+    group.push(stored);
+    this.byId.set(stored.id, group);
+    this.emit({ type: 'registered', record: stored });
+    return stored;
   }
 
   /**
-   * Unregister a shared element
+   * Remove a record by nativeId.
    */
-  unregisterElement(id: SharedElementId, node: SharedElementNode): void {
-    const existing = this.elements.get(id);
-    if (!existing) return;
-
-    // Remove the matching node
-    const filtered = existing.filter((e) => e.node.nativeId !== node.nativeId);
-
-    if (filtered.length === 0) {
-      this.elements.delete(id);
-    } else {
-      this.elements.set(id, filtered);
-    }
-
-    // Notify subscribers
-    this.notifySubscribers(id);
-  }
-
-  /**
-   * Get all registered nodes for an element ID
-   */
-  getNodes(id: SharedElementId): SharedElementNode[] {
-    const existing = this.elements.get(id);
-    if (!existing) return [];
-
-    // Sort by timestamp (oldest first)
-    return [...existing]
-      .sort((a, b) => a.timestamp - b.timestamp)
-      .map((e) => e.node);
-  }
-
-  /**
-   * Get a transition pair for an element ID
-   * Returns the oldest node as start and newest as end
-   */
-  getTransitionPair(id: SharedElementId): TransitionPair | null {
-    const nodes = this.getNodes(id);
-
-    if (nodes.length < 2) {
-      return null;
-    }
-
-    const start = nodes[0];
-    const end = nodes[nodes.length - 1];
-
-    // TypeScript safety - this shouldn't happen given the length check
-    if (!start || !end) {
-      return null;
-    }
-
-    // First registered is start, last is end
-    return { start, end };
-  }
-
-  /**
-   * Check if a transition is possible for an element ID
-   */
-  hasTransitionPair(id: SharedElementId): boolean {
-    return this.getTransitionPair(id) !== null;
-  }
-
-  /**
-   * Get all element IDs that have transition pairs
-   */
-  getReadyTransitions(): SharedElementId[] {
-    const ready: SharedElementId[] = [];
-
-    this.elements.forEach((_, id) => {
-      if (this.hasTransitionPair(id)) {
-        ready.push(id);
+  unregister(nativeId: string): void {
+    const record = this.records.get(nativeId);
+    if (!record) return;
+    this.records.delete(nativeId);
+    const group = this.byId.get(record.id);
+    if (group) {
+      const next = group.filter((r) => r.nativeId !== nativeId);
+      if (next.length === 0) {
+        this.byId.delete(record.id);
+      } else {
+        this.byId.set(record.id, next);
       }
+    }
+    this.emit({
+      type: 'unregistered',
+      record,
+      remaining: this.getNewest(record.id),
     });
-
-    return ready;
   }
 
   /**
-   * Get all transition pairs at once
+   * Mark a record as laid out (its wrapper received onLayout).
    */
-  getAllTransitionPairs(): Array<
-    { elementId: SharedElementId } & TransitionPair
-  > {
-    const pairs: Array<{ elementId: SharedElementId } & TransitionPair> = [];
-
-    this.elements.forEach((_, id) => {
-      const pair = this.getTransitionPair(id);
-      if (pair) {
-        pairs.push({ elementId: id, ...pair });
-      }
-    });
-
-    return pairs;
+  markLayoutReady(nativeId: string): void {
+    const record = this.records.get(nativeId);
+    if (!record || record.layoutReady) return;
+    record.layoutReady = true;
+    this.emit({ type: 'layout', record });
   }
 
   /**
-   * Subscribe to element changes
+   * Refresh the mutable clone/config fields on re-render.
    */
-  subscribe(callback: RegistryChangeCallback): () => void {
-    this.subscribers.add(callback);
+  update(
+    nativeId: string,
+    fields: Partial<
+      Pick<
+        SharedElementRecord,
+        'element' | 'borderRadius' | 'borderWidth' | 'borderColor' | 'config'
+      >
+    >
+  ): void {
+    const record = this.records.get(nativeId);
+    if (!record) return;
+    Object.assign(record, fields);
+  }
 
+  /** Store the last measured frame (used for return transitions). */
+  setLastFrame(nativeId: string, frame: MeasuredFrame): void {
+    const record = this.records.get(nativeId);
+    if (record) record.lastFrame = frame;
+  }
+
+  getRecord(nativeId: string): SharedElementRecord | null {
+    return this.records.get(nativeId) ?? null;
+  }
+
+  /** All records for an element id, in registration order. */
+  getRecords(id: SharedElementId): SharedElementRecord[] {
+    return [...(this.byId.get(id) ?? [])];
+  }
+
+  /** The most recently registered record for an id. */
+  getNewest(id: SharedElementId): SharedElementRecord | null {
+    const group = this.byId.get(id);
+    return group && group.length > 0 ? group[group.length - 1]! : null;
+  }
+
+  /**
+   * The most recently registered record with the same id, excluding the
+   * given one — i.e. the transition partner of a newly-mounted element.
+   */
+  getPartnerOf(record: SharedElementRecord): SharedElementRecord | null {
+    const group = this.byId.get(record.id);
+    if (!group) return null;
+    for (let i = group.length - 1; i >= 0; i--) {
+      if (group[i]!.nativeId !== record.nativeId) return group[i]!;
+    }
+    return null;
+  }
+
+  subscribe(listener: RegistryListener): () => void {
+    this.listeners.add(listener);
     return () => {
-      this.subscribers.delete(callback);
+      this.listeners.delete(listener);
     };
   }
 
-  /**
-   * Clear all registered elements
-   */
+  /** Remove everything (tests only). */
   clear(): void {
-    this.elements.clear();
-    // Don't notify - this is usually for cleanup
+    this.records.clear();
+    this.byId.clear();
   }
 
-  /**
-   * Notify subscribers of changes
-   */
-  private notifySubscribers(id: SharedElementId): void {
-    const nodes = this.getNodes(id);
-
-    this.subscribers.forEach((callback) => {
+  private emit(event: RegistryEvent): void {
+    for (const listener of [...this.listeners]) {
       try {
-        callback(id, nodes);
+        listener(event);
       } catch (error) {
-        console.warn('[SharedElementRegistry] Subscriber error:', error);
+        console.error('[SharedElementRegistry] Listener error:', error);
       }
-    });
-  }
-
-  /**
-   * Debug: Get all registered elements
-   */
-  debugGetAll(): Map<SharedElementId, SharedElementNode[]> {
-    const result = new Map<SharedElementId, SharedElementNode[]>();
-
-    this.elements.forEach((elements, id) => {
-      result.set(
-        id,
-        elements.map((e) => e.node)
-      );
-    });
-
-    return result;
+    }
   }
 }
 
-/**
- * Singleton instance of the registry
- */
 export const SharedElementRegistry = new SharedElementRegistryImpl();
-
-export default SharedElementRegistry;
+export type SharedElementRegistryType = SharedElementRegistryImpl;

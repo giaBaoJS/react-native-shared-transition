@@ -3,7 +3,7 @@
  * Showcases shared element transitions in action
  */
 
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import {
   View,
   Text,
@@ -103,21 +103,16 @@ function StatCard({ icon, label, value, delay }: StatCardProps) {
 export function DetailScreen({ route, navigation }: DetailScreenProps) {
   const { hero, index } = route.params;
   const insets = useSafeAreaInsets();
-  const gradientColors = CardGradients[index % CardGradients.length];
+  const gradientColors =
+    CardGradients[index % CardGradients.length] ?? CardGradients[0];
 
-  // Animated values
-  const imageScale = useSharedValue(0.8);
+  // Animated values — note: the shared image itself must NOT have an
+  // entrance animation; the transition overlay animates it instead.
   const contentOpacity = useSharedValue(0);
 
   useEffect(() => {
-    // Entrance animations
-    imageScale.value = withSpring(1, { damping: 12, stiffness: 100 });
     contentOpacity.value = withDelay(200, withTiming(1, { duration: 400 }));
-  }, [imageScale, contentOpacity]);
-
-  const imageAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: imageScale.value }],
-  }));
+  }, [contentOpacity]);
 
   const handleBack = () => {
     navigation.goBack();
@@ -168,7 +163,7 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
         showsVerticalScrollIndicator={false}
       >
         {/* Hero Image */}
-        <Animated.View style={[styles.imageContainer, imageAnimatedStyle]}>
+        <View style={styles.imageContainer}>
           <SharedElement id={`hero.${hero.id}.photo`}>
             <Image source={hero.photo} style={styles.heroImage} />
           </SharedElement>
@@ -177,14 +172,17 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
           <View
             style={[styles.imageGlow, { backgroundColor: gradientColors[1] }]}
           />
-        </Animated.View>
+        </View>
 
         {/* Hero Name */}
         <Animated.View
           style={styles.nameContainer}
           entering={FadeInUp.delay(150).springify()}
         >
-          <SharedElement id={`hero.${hero.id}.name`}>
+          <SharedElement
+            id={`hero.${hero.id}.name`}
+            config={{ contentScale: 'transform', crossFade: true }}
+          >
             <Text style={styles.heroName}>{hero.name}</Text>
           </SharedElement>
 

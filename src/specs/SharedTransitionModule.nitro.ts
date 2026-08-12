@@ -1,43 +1,9 @@
 import type { HybridObject } from 'react-native-nitro-modules';
 
 /**
- * Resize behavior for shared element transitions
- * Based on react-native-shared-element API
+ * A view frame measured in window coordinates (density-independent points).
  */
-export type SharedElementResize = 'auto' | 'stretch' | 'clip' | 'none';
-
-/**
- * Animation type for shared element transitions
- * Based on react-native-shared-element API
- */
-export type SharedElementAnimation = 'move' | 'fade' | 'fade-in' | 'fade-out';
-
-/**
- * Alignment for shared element transitions
- * Based on react-native-shared-element API
- */
-export type SharedElementAlign =
-  | 'auto'
-  | 'left-top'
-  | 'left-center'
-  | 'left-bottom'
-  | 'right-top'
-  | 'right-center'
-  | 'right-bottom'
-  | 'center-top'
-  | 'center-center'
-  | 'center-bottom';
-
-/**
- * Content type hint for optimization
- */
-export type SharedElementContentType = 'auto' | 'image' | 'snapshot';
-
-/**
- * Layout measurement returned from native
- * All values are in screen coordinates (px)
- */
-export interface SharedElementLayout {
+export interface MeasuredFrame {
   x: number;
   y: number;
   width: number;
@@ -45,107 +11,51 @@ export interface SharedElementLayout {
 }
 
 /**
- * Data returned when measuring a shared element node
+ * Result of a native snapshot capture.
  */
-export interface SharedElementNodeData {
-  /** Layout in screen coordinates */
-  layout: SharedElementLayout;
-  /** Content type detected */
-  contentType: SharedElementContentType;
-  /** Snapshot URI if captured */
-  snapshotUri: string;
+export interface SnapshotResult {
+  /** `file://` URI of the captured PNG */
+  uri: string;
+  /** Logical width of the snapshot (points) */
+  width: number;
+  /** Logical height of the snapshot (points) */
+  height: number;
 }
 
 /**
- * Configuration for a transition
- */
-export interface TransitionConfig {
-  animation: SharedElementAnimation;
-  resize: SharedElementResize;
-  align: SharedElementAlign;
-  /** Debug mode - renders overlay boxes */
-  debug: boolean;
-}
-
-/**
- * Data for a prepared transition between two elements
- */
-export interface PreparedTransitionData {
-  startLayout: SharedElementLayout;
-  endLayout: SharedElementLayout;
-  startSnapshotUri: string;
-  endSnapshotUri: string;
-  startContentType: SharedElementContentType;
-  endContentType: SharedElementContentType;
-}
-
-/**
- * Shared Transition Native Module (Nitro)
+ * SharedTransition native module (Nitro HybridObject).
  *
- * Modern implementation using:
- * - Fabric-safe view lookup via nativeID
- * - CALayer (iOS) / View.draw (Android) for snapshots
- * - Screen-relative measurements
+ * Provides the three native primitives the JS transition coordinator needs:
+ *  - precise, Fabric-safe view measurement in window coordinates
+ *  - PNG snapshot capture of a view subtree
+ *  - hiding/showing the original views while the overlay is in flight
  *
- * Compatible with react-native-shared-element API patterns.
+ * Views are looked up by the `nativeID` prop that `<SharedElement>` assigns.
  */
 export interface SharedTransitionModule
   extends HybridObject<{ ios: 'swift'; android: 'kotlin' }> {
   /**
-   * Measure a view's layout by its nativeID
-   * Returns layout in screen coordinates
-   *
-   * @param nativeId - The nativeID prop value
+   * Measure a view's frame in window coordinates by its `nativeID`.
+   * Rejects if the view cannot be found or is not attached to a window.
    */
-  measureNode(nativeId: string): Promise<SharedElementNodeData>;
+  measureNode(nativeId: string): Promise<MeasuredFrame>;
 
   /**
-   * Capture a snapshot of a view
-   * Returns URI to the captured image
-   *
-   * @param nativeId - The nativeID prop value
+   * Capture a PNG snapshot of the view with the given `nativeID`.
+   * The file is written to the app's cache directory; call {@link cleanup}
+   * to delete captured files.
    */
-  captureSnapshot(nativeId: string): Promise<string>;
+  captureSnapshot(nativeId: string): Promise<SnapshotResult>;
 
   /**
-   * Prepare a transition between two elements
-   * Captures both snapshots and measures layouts
-   *
-   * @param startNodeId - Start element nativeID
-   * @param endNodeId - End element nativeID
-   * @param config - Transition configuration
-   */
-  prepareTransition(
-    startNodeId: string,
-    endNodeId: string,
-    config: TransitionConfig
-  ): Promise<PreparedTransitionData>;
-
-  /**
-   * Create a clone view for the transition overlay
-   * Returns the native view tag
-   *
-   * @param nativeId - Element to clone
-   */
-  createCloneView(nativeId: string): Promise<number>;
-
-  /**
-   * Destroy a clone view
-   *
-   * @param viewTag - Native view tag from createCloneView
-   */
-  destroyCloneView(viewTag: number): void;
-
-  /**
-   * Hide/show the original element during transition
-   *
-   * @param nativeId - Element nativeID
-   * @param hidden - Whether to hide
+   * Hide or show the original view while a transition overlay is in flight.
+   * Missing views are ignored (the view may already be unmounted).
    */
   setNodeHidden(nativeId: string, hidden: boolean): void;
 
   /**
-   * Clean up all cached resources
+   * Delete captured snapshot files and re-show any views hidden through
+   * {@link setNodeHidden}.
    */
   cleanup(): void;
 }
