@@ -66,13 +66,13 @@ function HeroCard({ hero, index, onPress }: HeroCardProps) {
   };
 
   return (
-    <AnimatedPressable
-      onPress={onPress}
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
-      style={[styles.cardContainer, animatedStyle]}
-      entering={FadeInDown.delay(index * 80).springify()}
-    >
+    <Animated.View entering={FadeInDown.delay(index * 80).springify()}>
+      <AnimatedPressable
+        onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        style={[styles.cardContainer, animatedStyle]}
+      >
       {/* Gradient Background */}
       <View
         style={[styles.cardGradient, { backgroundColor: gradientColors[0] }]}
@@ -118,7 +118,8 @@ function HeroCard({ hero, index, onPress }: HeroCardProps) {
         <View style={[styles.decorCircle, styles.decorCircle1]} />
         <View style={[styles.decorCircle, styles.decorCircle2]} />
       </View>
-    </AnimatedPressable>
+      </AnimatedPressable>
+    </Animated.View>
   );
 }
 

@@ -140,11 +140,13 @@ export function TransitionView({ entry }: { entry: TransitionEntry }) {
     };
   });
 
+  // Cross-fade completes at ~55% of the flight so no ghost lingers through
+  // the spring's settling tail.
   const contentInStyle = useAnimatedStyle(() => ({
-    opacity: hasFadeContent ? fade.value : 1,
+    opacity: hasFadeContent ? Math.min(1, fade.value * 1.8) : 1,
   }));
   const contentOutStyle = useAnimatedStyle(() => ({
-    opacity: 1 - fade.value,
+    opacity: Math.max(0, 1 - fade.value * 1.8),
   }));
 
   const content = cloneContent(entry.content, config.contentScale);

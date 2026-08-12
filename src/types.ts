@@ -92,8 +92,8 @@ export const DEFAULT_TRANSITION_CONFIG: SharedTransitionConfig = {
   duration: 320,
   easing: 'ease-in-out',
   spring: {
-    damping: 26,
-    stiffness: 290,
+    damping: 24,
+    stiffness: 220,
     mass: 1,
     overshootClamping: false,
   },
