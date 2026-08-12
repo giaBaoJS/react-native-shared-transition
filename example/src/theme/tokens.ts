@@ -102,8 +102,6 @@ export const type = {
   },
 } as const;
 
-export type TypeToken = keyof typeof type;
-
 // =============================================================================
 // Motion
 // =============================================================================
@@ -125,7 +123,6 @@ export interface ThemeColor {
   canvas: string;
   surface: string;
   surfaceRaised: string;
-  glass: string;
   /**
    * Fill for a control that sits directly on a photograph. Identical in both
    * schemes on purpose: the backdrop is the image, not the canvas, so it must
@@ -157,8 +154,6 @@ const darkColor: ThemeColor = {
   surface: '#15151D',
   /** A surface sitting on top of another surface. */
   surfaceRaised: '#1E1E28',
-  /** Translucent fill for controls over imagery. */
-  glass: 'rgba(20, 20, 28, 0.62)',
   controlOnImage: 'rgba(10, 10, 16, 0.46)',
   borderOnImage: 'rgba(255, 255, 255, 0.28)',
   /** Hairline separators and card outlines. */
@@ -185,7 +180,6 @@ const lightColor: ThemeColor = {
   canvas: '#FBFAF8',
   surface: '#FFFFFF',
   surfaceRaised: '#FFFFFF',
-  glass: 'rgba(255, 255, 255, 0.74)',
   controlOnImage: 'rgba(10, 10, 16, 0.46)',
   borderOnImage: 'rgba(255, 255, 255, 0.28)',
   border: 'rgba(17, 17, 24, 0.10)',
