@@ -12,7 +12,7 @@
  * ```
  */
 
-import { Children, isValidElement, useEffect, useMemo, useRef } from 'react';
+import { Children, isValidElement, useEffect, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { ReactElement } from 'react';
 
@@ -54,7 +54,16 @@ export function SharedElement({
   children,
   config,
 }: SharedElementProps) {
-  const nativeId = useMemo(() => generateNativeId(id), [id]);
+  // Must be stable for the component's whole lifetime. `useMemo` is explicitly
+  // not a caching guarantee — if React discarded it, the identity would change
+  // and the registration effect would unregister/re-register, which a mounted
+  // partner would see as a spurious back-then-forward transition.
+  // (The `id` baked into the string is only a debugging label.)
+  const nativeIdRef = useRef<string | null>(null);
+  if (nativeIdRef.current === null) {
+    nativeIdRef.current = generateNativeId(id);
+  }
+  const nativeId = nativeIdRef.current;
 
   const onlyChild = Children.only(children);
   const element = isValidElement(onlyChild) ? onlyChild : null;

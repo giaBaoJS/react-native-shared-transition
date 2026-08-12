@@ -49,10 +49,25 @@ class HybridSharedTransitionModule : HybridSharedTransitionModuleSpec() {
         }
         val location = IntArray(2)
         view.getLocationInWindow(location)
+
+        // getLocationInWindow() is relative to the Activity window, which
+        // includes the status bar strip. The overlay, however, is positioned
+        // inside React Native's root view — a child of android.R.id.content,
+        // which sits *below* the status bar unless the host app made it
+        // translucent. Reporting raw window coordinates therefore offsets every
+        // overlay downward by the status bar height on a default setup.
+        // Subtracting the content root's own origin makes the returned frame
+        // content-relative, which matches where the overlay actually lives and
+        // is a no-op when the status bar is translucent.
+        val origin = IntArray(2)
+        ActivityHolder.currentActivity
+          ?.findViewById<View>(android.R.id.content)
+          ?.getLocationInWindow(origin)
+
         val density = view.resources.displayMetrics.density
         MeasuredFrame(
-          x = location[0] / density.toDouble(),
-          y = location[1] / density.toDouble(),
+          x = (location[0] - origin[0]) / density.toDouble(),
+          y = (location[1] - origin[1]) / density.toDouble(),
           width = view.width / density.toDouble(),
           height = view.height / density.toDouble()
         )
@@ -78,27 +93,33 @@ class HybridSharedTransitionModule : HybridSharedTransitionModuleSpec() {
         )
       }
 
-      // File I/O off the main thread
-      val cacheDir = ActivityHolder.currentActivity?.cacheDir
-        ?: throw IllegalStateException("No activity available for cache directory")
-      val safeId = nativeId.replace(Regex("[^A-Za-z0-9_-]"), "_")
-      val file = File(cacheDir, "shared_transition_${safeId}_${System.currentTimeMillis()}.png")
-      withContext(Dispatchers.IO) {
-        FileOutputStream(file).use { out ->
-          bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+      // File I/O off the main thread. The bitmap is recycled in a finally block:
+      // a full-screen ARGB_8888 bitmap is several megabytes, and every escape
+      // route out of this block (no activity, disk full, permission denied)
+      // would otherwise leak it.
+      try {
+        val cacheDir = ActivityHolder.currentActivity?.cacheDir
+          ?: throw IllegalStateException("No activity available for cache directory")
+        val safeId = nativeId.replace(Regex("[^A-Za-z0-9_-]"), "_")
+        val file = File(cacheDir, "shared_transition_${safeId}_${System.currentTimeMillis()}.png")
+        withContext(Dispatchers.IO) {
+          FileOutputStream(file).use { out ->
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+          }
         }
+
+        withContext(Dispatchers.Main) {
+          snapshotFiles.add(file)
+        }
+
+        SnapshotResult(
+          uri = "file://${file.absolutePath}",
+          width = width,
+          height = height
+        )
+      } finally {
         bitmap.recycle()
       }
-
-      withContext(Dispatchers.Main) {
-        snapshotFiles.add(file)
-      }
-
-      SnapshotResult(
-        uri = "file://${file.absolutePath}",
-        width = width,
-        height = height
-      )
     }
   }
 
@@ -168,12 +189,17 @@ class HybridSharedTransitionModule : HybridSharedTransitionModuleSpec() {
 @DoNotStrip
 @Keep
 object ActivityHolder {
-  private var activityRef: WeakReference<Activity>? = null
-  private var isInitialized = false
+  // Written from the main thread by the lifecycle callbacks, but read from the
+  // Promise.async coroutine (a background thread), so both need @Volatile for
+  // the reader to be guaranteed a non-stale value.
+  @Volatile private var activityRef: WeakReference<Activity>? = null
+  @Volatile private var isInitialized = false
 
   val currentActivity: Activity?
     get() = activityRef?.get()
 
+  // The ContentProvider and SharedTransitionPackage can both reach this.
+  @Synchronized
   fun init(application: Application) {
     if (isInitialized) return
     isInitialized = true

@@ -45,6 +45,16 @@ class SharedElementRegistryImpl {
     const group = this.byId.get(stored.id) ?? [];
     group.push(stored);
     this.byId.set(stored.id, group);
+    if (__DEV__ && group.length > 2) {
+      // Two is the transition pair (source screen + destination screen).
+      // Three or more means the id is not unique per screen, and the
+      // coordinator will pair up whichever two registered most recently.
+      console.warn(
+        `[react-native-shared-transition] ${group.length} elements are mounted ` +
+          `with the shared id "${stored.id}". An id must identify at most one ` +
+          `element per screen, or transitions will pair the wrong elements.`
+      );
+    }
     this.emit({ type: 'registered', record: stored });
     return stored;
   }

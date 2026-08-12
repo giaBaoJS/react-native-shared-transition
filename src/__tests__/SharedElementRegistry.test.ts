@@ -68,6 +68,7 @@ describe('SharedElementRegistry', () => {
   });
 
   it('finds the newest partner of a record', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
     const a = SharedElementRegistry.register(makeRecord('hero', 'a'));
     const b = SharedElementRegistry.register(makeRecord('hero', 'b'));
     const c = SharedElementRegistry.register(makeRecord('hero', 'c'));
@@ -75,6 +76,26 @@ describe('SharedElementRegistry', () => {
     expect(SharedElementRegistry.getPartnerOf(c)?.nativeId).toBe('b');
     expect(SharedElementRegistry.getPartnerOf(b)?.nativeId).toBe('c');
     expect(SharedElementRegistry.getPartnerOf(a)?.nativeId).toBe('c');
+    warn.mockRestore();
+  });
+
+  it('warns when an id is mounted more than twice', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+    // Two is the legitimate transition pair — source screen + destination.
+    SharedElementRegistry.register(makeRecord('hero', 'a'));
+    SharedElementRegistry.register(makeRecord('hero', 'b'));
+    expect(warn).not.toHaveBeenCalled();
+
+    // A third means the id is not unique per screen.
+    SharedElementRegistry.register(makeRecord('hero', 'c'));
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        '3 elements are mounted with the shared id "hero"'
+      )
+    );
+
+    warn.mockRestore();
   });
 
   it('returns null partner when alone', () => {

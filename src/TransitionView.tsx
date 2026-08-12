@@ -63,6 +63,15 @@ export function TransitionView({ entry }: { entry: TransitionEntry }) {
   const height = useSharedValue(from.height);
   const radius = useSharedValue(config.morphBorderRadius ? fromRadius : 0);
   const fade = useSharedValue(0);
+  /**
+   * Drives completion. It always travels 0 → 1, which matters: Reanimated's
+   * spring settles on the very first frame when its start and end values are
+   * equal (zero initial energy). Hanging the completion callback off a
+   * geometric value would therefore end the transition immediately whenever
+   * that dimension happens not to change — e.g. a full-bleed image morphing
+   * into another full-bleed image, where only `y` and `height` move.
+   */
+  const progress = useSharedValue(0);
 
   // Destination layout for 'transform' content scaling — static per target.
   const toWidth = entry.to.width;
@@ -93,13 +102,17 @@ export function TransitionView({ entry }: { entry: TransitionEntry }) {
 
     x.value = animate(to.x);
     y.value = animate(to.y);
+    width.value = animate(to.width);
     height.value = animate(to.height);
     radius.value = animate(cfg.morphBorderRadius ? toRadius : 0);
     fade.value = animate(1);
-    width.value =
+
+    // Restart progress from 0 so a retarget re-runs the full settle window.
+    progress.value = 0;
+    progress.value =
       cfg.animation === 'spring'
-        ? withSpring(to.width, spring, onSettled)
-        : withTiming(to.width, timing, onSettled);
+        ? withSpring(1, spring, onSettled)
+        : withTiming(1, timing, onSettled);
 
     // Hide the originals only now that the overlay exists — no empty frame.
     TransitionCoordinator.handleOverlayReady(id, generation);
@@ -111,6 +124,7 @@ export function TransitionView({ entry }: { entry: TransitionEntry }) {
       cancelAnimation(height);
       cancelAnimation(radius);
       cancelAnimation(fade);
+      cancelAnimation(progress);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entry.generation]);

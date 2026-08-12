@@ -100,9 +100,16 @@ android {
     disable "GradleCompatible"
   }
 
+  // React Native 0.83 builds against the Java 17 toolchain. Leaving this at 1.8
+  // with no matching kotlinOptions.jvmTarget is the classic source of
+  // "Inconsistent JVM-target compatibility" failures in consumer builds.
   compileOptions {
-    sourceCompatibility JavaVersion.VERSION_1_8
-    targetCompatibility JavaVersion.VERSION_1_8
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+  }
+
+  kotlinOptions {
+    jvmTarget = "17"
   }
 
   sourceSets {

@@ -52,6 +52,16 @@ function flush(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
+/** Mirrors MEASURE_RETRY_ATTEMPTS in TransitionCoordinator. */
+const MEASURE_RETRY_ATTEMPTS = 12;
+
+/** Advance enough macrotasks for the measure retry loop to exhaust itself. */
+async function flushFrames(count: number): Promise<void> {
+  for (let i = 0; i < count; i++) {
+    await flush();
+  }
+}
+
 const FRAME_A: MeasuredFrame = { x: 10, y: 20, width: 100, height: 100 };
 const FRAME_B: MeasuredFrame = { x: 50, y: 200, width: 250, height: 250 };
 
@@ -234,5 +244,82 @@ describe('TransitionCoordinator', () => {
       ['hero', false],
     ]);
     unsubscribe();
+  });
+
+  describe('failure paths', () => {
+    let warn: jest.SpyInstance;
+    let defaultMeasure: (nativeId: string) => Promise<MeasuredFrame>;
+
+    beforeEach(() => {
+      warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      // jest.clearAllMocks() only clears calls, not implementations — keep the
+      // real one so a test that swaps it can put it back.
+      defaultMeasure = native.measureNode.getMockImplementation();
+    });
+
+    afterEach(() => {
+      warn.mockRestore();
+      native.measureNode.mockImplementation(defaultMeasure);
+    });
+
+    it('warns instead of failing silently when the target never measures', async () => {
+      native.__frames.set('a', FRAME_A);
+      // No frame for 'b' — every measureNode attempt rejects.
+
+      SharedElementRegistry.register(makeRecord('hero', 'a'));
+      SharedElementRegistry.register(makeRecord('hero', 'b'));
+      await flushFrames(MEASURE_RETRY_ATTEMPTS + 4);
+
+      expect(TransitionCoordinator.getEntries()).toHaveLength(0);
+      expect(native.__hidden.size).toBe(0);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('Could not measure "b"'),
+        expect.anything()
+      );
+    });
+
+    it('absorbs a synchronous throw from the native module', async () => {
+      const rejections: unknown[] = [];
+      const onRejection = (reason: unknown) => rejections.push(reason);
+      process.on('unhandledRejection', onRejection);
+
+      native.measureNode.mockImplementation(() => {
+        throw new Error('native exploded synchronously');
+      });
+
+      SharedElementRegistry.register(makeRecord('hero', 'a'));
+      SharedElementRegistry.register(makeRecord('hero', 'b'));
+      await flushFrames(4);
+
+      process.off('unhandledRejection', onRejection);
+
+      expect(rejections).toHaveLength(0);
+      expect(TransitionCoordinator.getEntries()).toHaveLength(0);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to start a transition'),
+        expect.anything()
+      );
+    });
+  });
+
+  it('does not leak the previous host default config across a detach', async () => {
+    // Unwind the attach from beforeEach so the next attach is the first one.
+    TransitionCoordinator.detach();
+
+    TransitionCoordinator.attach({ animation: 'timing', duration: 999 });
+    TransitionCoordinator.detach();
+
+    // A fresh host that passes no config must get the library defaults back.
+    TransitionCoordinator.attach();
+
+    native.__frames.set('a', FRAME_A);
+    native.__frames.set('b', FRAME_B);
+    SharedElementRegistry.register(makeRecord('hero', 'a'));
+    SharedElementRegistry.register(makeRecord('hero', 'b'));
+    await flush();
+
+    const entry = TransitionCoordinator.getEntries()[0]!;
+    expect(entry.config.animation).toBe('spring');
+    expect(entry.config.duration).toBe(320);
   });
 });

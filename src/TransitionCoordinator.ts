@@ -79,18 +79,38 @@ async function measureWithRetry(
   native: SharedTransitionModule,
   nativeId: string
 ): Promise<MeasuredFrame | null> {
+  let lastError: unknown;
   for (let attempt = 0; attempt < MEASURE_RETRY_ATTEMPTS; attempt++) {
     try {
       const frame = await native.measureNode(nativeId);
       if (frame.width > 0 && frame.height > 0) {
         return frame;
       }
-    } catch {
-      // View not mounted natively yet — retry next frame.
+    } catch (error) {
+      // Usually just "not mounted natively yet" — retry next frame. Keep the
+      // last error so a permanent failure is not silent.
+      lastError = error;
     }
     await nextFrame();
   }
+  if (__DEV__) {
+    console.warn(
+      `[react-native-shared-transition] Could not measure "${nativeId}" after ` +
+        `${MEASURE_RETRY_ATTEMPTS} frames — the transition was skipped. Check ` +
+        `that the element is mounted and has a non-zero size.`,
+      lastError
+    );
+  }
   return null;
+}
+
+function reportBeginError(error: unknown): void {
+  if (__DEV__) {
+    console.warn(
+      '[react-native-shared-transition] Failed to start a transition.',
+      error
+    );
+  }
 }
 
 type StateListener = (id: SharedElementId, active: boolean) => void;
@@ -147,6 +167,9 @@ class TransitionCoordinatorImpl {
         this.removeEntry(id);
       }
       this.hiddenById.clear();
+      // Do not leak the departed host's config into the next one that mounts
+      // without an explicit `config` prop.
+      this.defaultConfig = undefined;
       try {
         getNativeModule()?.cleanup();
       } catch {
@@ -213,7 +236,7 @@ class TransitionCoordinatorImpl {
     if (!partner) return;
 
     if (record.layoutReady) {
-      void this.begin(partner, record, 'forward');
+      this.begin(partner, record, 'forward');
       return;
     }
     // Wait for the new element's first layout before measuring.
@@ -235,7 +258,7 @@ class TransitionCoordinatorImpl {
     this.pending.delete(record.nativeId);
     const from = SharedElementRegistry.getRecord(pending.fromNativeId);
     if (!from) return;
-    void this.begin(from, record, 'forward');
+    this.begin(from, record, 'forward');
   }
 
   private handleUnregistered(
@@ -256,7 +279,7 @@ class TransitionCoordinatorImpl {
     if (remaining && record.lastFrame) {
       // Screen pop — run the return transition using the departed
       // element's last known frame as the starting point.
-      void this.begin(record, remaining, 'back');
+      this.begin(record, remaining, 'back');
     } else if (!remaining) {
       // Everything for this id is gone — drop any overlay immediately.
       const entry = this.entries.get(record.id);
@@ -270,7 +293,25 @@ class TransitionCoordinatorImpl {
   // Transition lifecycle
   // ===========================================================================
 
-  private async begin(
+  /**
+   * Fire-and-forget entry point. `beginAsync` awaits native calls that can
+   * reject (or throw synchronously, since the Nitro spec declares
+   * `measureNode` as throwing), so the rejection is absorbed here rather than
+   * surfacing as an unhandled promise rejection.
+   */
+  private begin(
+    fromRecord: SharedElementRecord,
+    toRecord: SharedElementRecord,
+    direction: TransitionDirection
+  ): void {
+    try {
+      this.beginAsync(fromRecord, toRecord, direction).catch(reportBeginError);
+    } catch (error) {
+      reportBeginError(error);
+    }
+  }
+
+  private async beginAsync(
     fromRecord: SharedElementRecord,
     toRecord: SharedElementRecord,
     direction: TransitionDirection
