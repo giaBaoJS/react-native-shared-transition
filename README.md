@@ -134,7 +134,7 @@ Full reference (hooks, native primitives): **[docs/api.md](docs/api.md)**.
 ## How it works
 
 1. `<SharedElement>` wraps its child in a `View` with a unique `nativeID` and registers it (with a clone template of the child) in a JS registry.
-2. When a second element with the same id mounts (screen push), the coordinator waits for its first layout, then measures **both** endpoints through the Nitro module — natively, in window coordinates, transform-aware.
+2. When a second element with the same id mounts (screen push), the coordinator waits for its first layout, then measures **both** endpoints through the Nitro module — natively, in the root view's coordinate space. On iOS the measurement is transform-aware (the rect is mapped through the full transform chain); on Android it currently reports the layout box, so an element that is mid-`scale` measures its unscaled size.
 3. A Reanimated-driven overlay is mounted at the source frame; only once it exists are the two originals hidden natively (alpha, layout-free) — so there is never an empty frame.
 4. The overlay morphs x/y/width/height/borderRadius to the target frame with the configured spring/timing. Content is a re-rendered clone of the child (same image source ⇒ zero snapshot I/O, no decode flicker), optionally cross-faded.
 5. On completion the target is revealed first and the overlay removed one frame later — a seamless hand-off. On back navigation the coordinator replays the morph in reverse from the element's last measured frame; if that happens mid-flight, the running spring is retargeted instead of restarted.
@@ -143,7 +143,9 @@ The Nitro module (`measureNode`, `captureSnapshot`, `setNodeHidden`, `cleanup`) 
 
 ## Example app
 
-The [`example`](example) app is a full showcase (hero gallery → detail) with per-hero config variants — default spring, bouncy spring, timing curves, radius-morph off, cross-faded text.
+The [`example`](example) app is a photo gallery — a hero card plus a masonry grid — where every frame flies into a full-bleed detail screen. Each card shares **two** elements at once: the photograph and its title (the latter with `contentScale: 'transform'` + `crossFade`, since it changes size between screens).
+
+A segmented control at the top switches the app-wide config passed to `<SharedTransitionHost config>` between a default spring, a fixed timing curve, and an under-damped bouncy spring, so you can feel the difference on the same transition. It is dark-first and follows the system appearance.
 
 ```sh
 yarn

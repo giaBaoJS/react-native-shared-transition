@@ -59,7 +59,7 @@ the host config, then to the defaults:
 | `morphBorderRadius` | `boolean`                 | `true`     | Animate `borderRadius` between the source and target styles (numeric radii only).                                                                |
 | `contentScale`      | `'resize' \| 'transform'` | `'resize'` | `'resize'` re-lays-out content at the animated size each frame (best for images). `'transform'` lays out once at the destination size and scales (best for text). |
 
-Default spring: `{ damping: 26, stiffness: 290, mass: 1, overshootClamping: false }`.
+Default spring: `{ damping: 24, stiffness: 220, mass: 1, overshootClamping: false }`.
 
 ```tsx
 <SharedElement
