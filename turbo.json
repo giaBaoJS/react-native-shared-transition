@@ -5,17 +5,19 @@
   "tasks": {
     "build:android": {
       "env": ["ANDROID_HOME", "ORG_GRADLE_PROJECT_newArchEnabled"],
+      // Both scripts live in the example package, so bare globs resolve inside
+      // it; the library's own sources need the $TURBO_ROOT$ prefix.
       "inputs": [
+        "$TURBO_ROOT$/package.json",
+        "$TURBO_ROOT$/nitro.json",
+        "$TURBO_ROOT$/src/**",
+        "$TURBO_ROOT$/android/**",
         "package.json",
-        "android",
-        "!android/build",
-        "src/*.ts",
-        "src/*.tsx",
-        "example/package.json",
-        "example/android",
-        "!example/android/.gradle",
-        "!example/android/build",
-        "!example/android/app/build"
+        "src/**",
+        "android/**",
+        "!android/.gradle/**",
+        "!android/build/**",
+        "!android/app/build/**"
       ],
       "outputs": []
     },
@@ -27,15 +29,16 @@
         "RCT_USE_PREBUILT_RNCORE"
       ],
       "inputs": [
+        "$TURBO_ROOT$/package.json",
+        "$TURBO_ROOT$/nitro.json",
+        "$TURBO_ROOT$/*.podspec",
+        "$TURBO_ROOT$/src/**",
+        "$TURBO_ROOT$/ios/**",
         "package.json",
-        "*.podspec",
-        "ios",
-        "src/*.ts",
-        "src/*.tsx",
-        "example/package.json",
-        "example/ios",
-        "!example/ios/build",
-        "!example/ios/Pods"
+        "src/**",
+        "ios/**",
+        "!ios/build/**",
+        "!ios/Pods/**"
       ],
       "outputs": []
     }
