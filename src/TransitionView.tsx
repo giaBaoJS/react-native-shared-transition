@@ -24,6 +24,7 @@ import type {
   WithTimingConfig,
 } from 'react-native-reanimated';
 
+import { resolveOverlayRadius } from './overlayRadius';
 import { TransitionCoordinator } from './TransitionCoordinator';
 import type { TransitionEntry } from './TransitionCoordinator';
 import type { SharedTransitionEasing } from './types';
@@ -61,7 +62,10 @@ export function TransitionView({ entry }: { entry: TransitionEntry }) {
   const y = useSharedValue(from.y);
   const width = useSharedValue(from.width);
   const height = useSharedValue(from.height);
-  const radius = useSharedValue(config.morphBorderRadius ? fromRadius : 0);
+  const radius = useSharedValue(
+    resolveOverlayRadius(config.morphBorderRadius, fromRadius, entry.toRadius)
+      .start
+  );
   const fade = useSharedValue(0);
   /**
    * Drives completion. It always travels 0 → 1, which matters: Reanimated's
@@ -104,7 +108,9 @@ export function TransitionView({ entry }: { entry: TransitionEntry }) {
     y.value = animate(to.y);
     width.value = animate(to.width);
     height.value = animate(to.height);
-    radius.value = animate(cfg.morphBorderRadius ? toRadius : 0);
+    radius.value = animate(
+      resolveOverlayRadius(cfg.morphBorderRadius, fromRadius, toRadius).end
+    );
     fade.value = animate(1);
 
     // Restart progress from 0 so a retarget re-runs the full settle window.
